@@ -1,0 +1,195 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<xs:schema xmlns="http://www.vypress.com/chatterm10" attributeFormDefault="unqualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.vypress.com/chatterm10">
+
+  <xs:element name="chatterminal">
+    <xs:complexType>
+      <xs:all>
+        <xs:element ref="user_info" minOccurs="0" />
+        <xs:element ref="network" minOccurs="0" />
+        <xs:element ref="users_list" minOccurs="0" />
+        <xs:element ref="command_line" minOccurs="0" />
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="user_info">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="nick">
+          <xs:simpleType>
+            <xs:restriction base="xs:string">
+              <xs:maxLength value="35" fixed="true"/>
+            </xs:restriction>
+          </xs:simpleType>
+        </xs:element>
+        <xs:element name="uuid" nillable="true">
+          <xs:simpleType>
+            <xs:restriction base="xs:string">
+              <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+            </xs:restriction>
+          </xs:simpleType>
+        </xs:element>
+        <xs:element name="gender" >
+          <xs:simpleType>
+            <xs:restriction base="xs:string">
+              <xs:enumeration value="female"/>
+              <xs:enumeration value="woman"/>
+              <xs:enumeration value="male"/>
+              <xs:enumeration value="man"/>
+            </xs:restriction>
+          </xs:simpleType>
+        </xs:element>
+        <xs:element name="color">
+          <xs:simpleType>
+            <xs:restriction base="xs:string">
+              <xs:enumeration value="black"/>
+              <xs:enumeration value="blue"/>
+              <xs:enumeration value="green"/>
+              <xs:enumeration value="aqua"/>
+              <xs:enumeration value="red"/>
+              <xs:enumeration value="purple"/>
+              <xs:enumeration value="yellow"/>
+              <xs:enumeration value="white"/>
+              <xs:enumeration value="gray"/>
+              <xs:enumeration value="light blue"/>
+              <xs:enumeration value="light green"/>
+              <xs:enumeration value="light aqua"/>
+              <xs:enumeration value="light red"/>
+              <xs:enumeration value="light purple"/>
+              <xs:enumeration value="light yellow"/>
+              <xs:enumeration value="bright white"/>
+            </xs:restriction>
+          </xs:simpleType>
+        </xs:element>
+        <xs:element name="icon" type="xs:decimal" />
+        <xs:element name="personal_info">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="full_name" type="xs:string" />
+              <xs:element name="job" type="xs:string" />
+              <xs:element name="department" type="xs:string" />
+              <xs:element name="phone_work" type="xs:string" />
+              <xs:element name="phone_mob" type="xs:string" />
+              <xs:element name="www" type="xs:string" />
+              <xs:element name="email" nillable="true" >
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:pattern value="\w+@(\w|\.)+"/>
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="address" type="xs:string" />
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="network">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="interfaces">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element maxOccurs="unbounded" name="interface">
+                <xs:complexType>
+                  <xs:attribute name="id" type="xs:ID" use="required" />
+                  <xs:attribute name="ipver" use="required">
+                    <xs:simpleType>
+                      <xs:restriction base="xs:decimal">
+                        <xs:enumeration value="6"/>
+                        <xs:enumeration value="4"/>
+                      </xs:restriction>
+                    </xs:simpleType>
+                  </xs:attribute>
+                 <xs:attribute name="address" type="xs:string" use="optional" />
+                 <xs:attribute name="name" type="xs:string" use="optional" />
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="binding">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="senders">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element maxOccurs="unbounded" name="sender">
+                      <xs:complexType>
+                        <xs:simpleContent>
+                          <xs:extension base="xs:string">
+                            <xs:attribute name="id" type="xs:ID" use="required" />
+                            <xs:attribute name="interface" type="xs:IDREF" use="required" />
+                            <xs:attribute name="bindport" type="xs:unsignedShort" use="optional" />
+                            <xs:attribute name="ttl" type="xs:unsignedByte" use="optional" />
+                          </xs:extension>
+                        </xs:simpleContent>
+                      </xs:complexType>
+                    </xs:element>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="receivers">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element maxOccurs="unbounded" name="receiver">
+                      <xs:complexType>
+                        <xs:attribute name="interface" type="xs:IDREF" use="required" />
+                        <xs:attribute name="bindport" type="xs:unsignedShort" use="required" />
+                        <xs:attribute name="mcastgroups" type="xs:string" use="optional" />
+                        <xs:attribute name="sender" type="xs:IDREF" use="optional" />
+                      </xs:complexType>
+                    </xs:element>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="broadcast_destinations">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element maxOccurs="unbounded" name="destination">
+                      <xs:complexType>
+                        <xs:attribute name="address" type="xs:string" use="required" />
+                        <xs:attribute name="port" type="xs:unsignedShort" use="required" />
+                        <xs:attribute name="sender" type="xs:IDREF" use="required" />
+                      </xs:complexType>
+                    </xs:element>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="flood_protection">
+          <xs:complexType>
+            <xs:simpleContent>
+              <xs:extension base="xs:string">
+                <xs:attribute name="max_rate" type="xs:decimal" use="optional" />
+                <xs:attribute name="ignore_time" type="xs:decimal" use="optional" />
+              </xs:extension>
+            </xs:simpleContent>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="users_list">
+    <xs:complexType>
+      <xs:attribute name="drop_after" type="xs:decimal" use="optional" />
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="command_line">
+    <xs:complexType>
+      <xs:attribute name="remember" type="xs:decimal" use="optional" />
+      <xs:attribute name="echo" use="optional" >
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="on"/>
+            <xs:enumeration value="off"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

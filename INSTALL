@@ -1,0 +1,66 @@
+Build requirements for ChatTerminal
+===================================
+
+### Windows Requirements ###
+
+- Windows 2000 or newer
+- Microsoft Visual C++ 2008 or newer
+- MSXML library
+
+### Mac OS X Requirements ###
+
+- Mac OS X 10.3.9 Panther or newer
+- Developer Tools Installed
+- xml2 version 2.6.2 or newer (it is also required to create a link 'libxml'
+                              to 'libxml2/libxml' folder inside an
+                              'include' folder, use
+                              'ln -s /usr/include/libxml2/libxml /usr/include/libxml')
+- ncursesw
+- uuid (can be downloaded and installed with the 'e2fsprogs'
+           package from http://e2fsprogs.sourceforge.net/)
+
+uuid library is not necessary for Mac OS X 10.4 or newer
+
+### Linux Requirements ###
+- glibc
+- stdc++
+- iconv
+- uuid
+- crypto (OpenSSL)
+- pthread
+- xml2 version 2.6.2 or newer (it is also required to create a link 'libxml'
+                              to 'libxml2/libxml' folder inside an
+                              'include' folder, use
+                              'ln -s /usr/include/libxml2/libxml /usr/include/libxml')
+- ncursesw
+- gcc
+- make
+
+Basic Installation
+==================
+
+ These are generic installation instructions.
+
+ The simplest way to compile ChatTerminal is:
+
+### Windows Installation ###
+
+  1. Open project file msvc\ChatTerminal.vcproj using Microsoft Visual C++.
+
+  2. Build the project.
+
+### Linux and Mac OS X Installation ###
+
+  1. 'cd' to the directory containing the package's source code;
+
+  2. 'cd' to the 'make' directory;
+
+  3. Type 'make' to compile the package. On systems where 'iconv' is not a part
+     of standard C library (Mac OS X)  type 'make chatterm_LIBS="-liconv"'
+     to compile the program;
+
+  4. You can copy created 'ChatTerm' and 'chatterm10.xsd' files to any folder
+     which you want to run the ChatTerminal from;
+
+  5. You can remove the program binaries and object files from the
+     source code directory by typing 'make clean'.

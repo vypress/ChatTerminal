@@ -1,0 +1,10 @@
+/echo on
+/list
+/wait 2
+/join
+/wait 2
+Hello!
+/wait 10
+# /quit - it is a comment
+# /wait 30  - it is a comment
+/echo off

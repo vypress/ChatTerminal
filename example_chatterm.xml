@@ -1,0 +1,74 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<chatterminal xmlns="http://www.vypress.com/chatterm10" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.vypress.com/chatterm10 chatterm10.xsd">
+  <network>
+    <interfaces><!--interfaces element must contain at least one interface element-->
+      <!--inteface element specifies a local TCP/IP transports to which senders and receivers can bind
+      Attributes: address - optional, a local TCP/IP address; It must be a IPv4 or IPv6 address depends of ipver attribute
+                  name - optional, an adapter name or adapter friendly name
+                  ipver - specifies a family of TCP/IP address; possible values 6 or 4.
+
+                  At least one of address and name attributes must be specified.
+                  It is possible to do not specify the address attribute then bind will be made on first available IP address of specified family on adapter specified by name attribute
+      -->
+      <interface id="i1" address="192.168.1.1" ipver="4"></interface>
+      <interface id="i2" address="fec0::1:1%1" ipver="6"></interface>
+      <interface id="i3" name="Local Area Connection1" ipver="4"></interface>
+    </interfaces>
+
+    <binding>
+      <senders>
+        <!--senders element must contain at least one sender element-->
+        <!--sender element specifies a source object which is used to send outgoing UDP datagrams
+        Attributes: interface - reference to a local TCP/IP transport, that must be defined above
+                    bindport - TCP/IP port to bind to
+                    ttl - optional, a number of network segments to be covered by multicast messages
+         -->
+        <sender id="s1" interface="i1"></sender>
+        <sender id="s2" interface="i2" bindport="8167" ttl="255"></sender>
+        <sender id="s3" interface="i3" ttl="1"></sender>
+      </senders>
+      <receivers>
+        <!--receivers element must contain at least one receiver element-->
+        <!--receiver element specifies a source object which is used to receive UDP datagrams
+        Attributes: interface - reference to a local TCP/IP transport, that must be defined above
+                    bindport - TCP/IP port to bind to
+                    sender - optional, reference to a sender, that must be defined above, which is used to reply to recipients, whose messages receive through the receiver
+                    mcastgroups - optional, a list of addresses of multicast groups which join to. If this attribute is not specified then only broadcast message are received
+        -->
+        <receiver interface="i1" bindport="8167" mcastgroups="227.0.0.1 227.0.0.2" sender="s1"></receiver>
+        <receiver interface="i2" bindport="8167" mcastgroups="fffe::2" sender="s2"></receiver>
+        <receiver interface="i3" bindport="8167" sender="s3"></receiver>
+      </receivers>
+      <broadcast_destinations>
+        <!--broadcast_destinations element must contain at least one destination element-->
+        <!--destination element specifies a destination object which broadcast messages are sent to
+        Attributes: address - a TCP/IP address (broadcast or multicast) which messages are sent to
+                    port - destination TCP/IP port
+                    sender - reference to a sender, that must be defined above, which is used to send a message
+       -->
+        <destination address="227.0.0.2" port="8167" sender="s1"></destination>
+        <destination address="fffe::2" port="8167" sender="s2"></destination>
+        <destination address="192.168.10.255" port="8167" sender="s3"></destination>
+      </broadcast_destinations>
+   </binding>
+
+    <!--flood_protection element specifies options that rely to flood protection process
+    Attributes: max_rate - maximum allowed number of UDP messages from one user per one minute
+                ignore_time - time in seconds which user who floods are blocked for
+    -->
+    <flood_protection max_rate="30" ignore_time="30">
+      <!--"Comment"-->
+    </flood_protection>
+  </network>
+
+  <!--users_list element specifies options that rely to managing of list of users
+  Attributes: drop_after - time in minutes after a user removed from the list in case of he is unreachable
+    -->
+  <users_list drop_after="1"></users_list>
+
+  <!--command_line element specifies options that rely to processing console input
+  Attributes: remember - number of entered commands that are store in the stack and can be accessed by Up and Down arrows keys
+              echo - specifies whether to display typed text or  executed command, possible values on or off.
+    -->
+  <command_line remember="100" echo="off"></command_line>
+</chatterminal>

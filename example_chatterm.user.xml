@@ -1,0 +1,35 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<chatterminal xmlns="http://www.vypress.com/chatterm10" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.vypress.com/chatterm10 chatterm10.xsd">
+  <!--user_info element specifies information about a ChatTerminal user-->
+  <user_info>
+    <!--"Nick name"-->
+    <nick>Example Nick</nick>
+    <!--"UUID of the user, this element is reserved, must have xsi:nil='true' attribute"-->
+    <uuid xsi:nil="true" />
+    <!--Gender, possible values: man, woman, male, female-->
+    <gender>male</gender>
+    <!--Color of user's messages, possible values: black, blue, green, aqua, red, purple, yellow, white, gray,
+    light blue, light green, light aqua, light red, light purple, light yellow, bright white-->
+    <color>green</color>
+    <!--User's icon for the Vypress Chat-->
+    <icon>0</icon>
+    <personal_info>
+      <!--Full name-->
+      <full_name>Example Full Name</full_name>
+      <!--Job-->
+      <job>Example Job</job>
+      <!--Job department-->
+      <department>Example Department</department>
+      <!--Work phone number-->
+      <phone_work>Example Work Phone</phone_work>
+      <!--Mobile phone number-->
+      <phone_mob>Example Mobile Phone</phone_mob>
+      <!--User's web page address-->
+      <www>Example Web Address</www>
+      <!--E-mail address, if it not specified then, it must have xsi:nil='true' attribute-->
+      <email xsi:nil="true"></email>
+      <!--Post address-->
+      <address>Example Post Address</address>
+    </personal_info>
+  </user_info>
+</chatterminal>
