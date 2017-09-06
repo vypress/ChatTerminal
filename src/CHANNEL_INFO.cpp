@@ -1,9 +1,7 @@
 /**
-$Id: CHANNEL_INFO.cpp 28 2010-08-29 18:06:44Z avyatkin $
-
 Implementation of the CHANNEL_INFO class
 
-Copyright (c) 2010 VyPRESS Research, LLC. All rights reserved.
+Copyright (c) 2017 VyPRESS Research, LLC. All rights reserved.
 For conditions of distribution and use, see copyright notice in ChatTerminal.h
 */
 #include <algorithm>
