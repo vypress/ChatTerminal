@@ -36,6 +36,8 @@ Aleksey Vyatkin, President
 #include <vector>
 #include <deque>
 #include <string>
+#include <memory>
+#include <functional>
 
 #ifndef CHATTERM_OS_WINDOWS
 #include <string.h> //memset, memcpy, memcmp

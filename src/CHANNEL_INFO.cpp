@@ -19,11 +19,17 @@ std::set< CHANNEL_INFO*, CHANNEL_INFO::Less > CHANNEL_INFO::SetOfChannels_;
 CHANNEL_INFO::ConstIteratorOfChannels CHANNEL_INFO::findChannelByName(const wchar_t* channel, bool fJoined)
 {
 	//It will create a name with a wchChPrefix prefix first
-	wchar_t* buf = createNameWithPrefix(channel, SEC_UNKNOWN);
+	std::unique_ptr<wchar_t> buf(createNameWithPrefix(channel, SEC_UNKNOWN));
 
-	if(buf) channel = buf;
+	if(nullptr!=buf) channel = buf.get();
 
-	NameComparator comparator(channel);
+	//NameComparator comparator(channel);
+	std::function<bool (const CHANNEL_INFO*)> comparator = [&channel](const CHANNEL_INFO* chinfo)
+	{
+		if (NULL == chinfo) return false;
+		if (NULL == chinfo->name) return false;
+		return 0 == _wcsicmp(channel, chinfo->name);
+	};
 
 	ConstIteratorOfChannels it_ch = std::find_if(SetOfChannels_.begin(), SetOfChannels_.end(), comparator);
 
@@ -35,7 +41,7 @@ CHANNEL_INFO::ConstIteratorOfChannels CHANNEL_INFO::findChannelByName(const wcha
 
 	if(it_ch == SetOfChannels_.end())
 	{
-		if(buf)
+		if(nullptr != buf)
 		{
 			*buf = wchSecureChPrefix_;//try to search secure channels
 
@@ -49,8 +55,6 @@ CHANNEL_INFO::ConstIteratorOfChannels CHANNEL_INFO::findChannelByName(const wcha
 			}
 		}
 	}
-
-	if(buf) delete[] buf;
 
 	return it_ch;
 }
@@ -130,18 +134,17 @@ bool CHANNEL_INFO::checkNamePrefix(const wchar_t* channel, SECURED_STATUS fSecur
 	return false;
 }
 
-wchar_t* CHANNEL_INFO::createNameWithPrefix(const wchar_t* channel, SECURED_STATUS fSecureStatus)
+std::make_unique<wchar_t[]> CHANNEL_INFO::createNameWithPrefix(const wchar_t* channel, SECURED_STATUS fSecureStatus)
 {
 	if(0==channel) return 0;
 
 	if(checkNamePrefix(channel, fSecureStatus)) return 0;
 
 	size_t buflen = wcslen(channel)+2;
-	wchar_t* buf = new wchar_t[buflen];
+
+	auto buf_ptr = std::make_unique<wchar_t[]>(buflen);
 	*buf = SECURED==fSecureStatus ? wchSecureChPrefix_ : wchChPrefix_;
 	wcscpy_s(buf+1, buflen-1, channel);
-	channel = buf;
-
 	return buf;
 }
 
