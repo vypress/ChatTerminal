@@ -38,7 +38,7 @@
     <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(Configuration)\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(Configuration)\</IntDir>
-    <NMakeBuildCommandLine Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nmake APPVER="5.01" cvarsexe="-D_DEBUG -D_CRTDBG_MAP_ALLOC /EHsc"</NMakeBuildCommandLine>
+    <NMakeBuildCommandLine Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nmake APPVER="5.01" CPU=i386 cvarsexe="-D_DEBUG -D_CRTDBG_MAP_ALLOC /EHsc"</NMakeBuildCommandLine>
     <NMakeReBuildCommandLine Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nmake clean APPVER="5.01"
 nmake all APPVER="5.01" cvarsexe="-W4 -D_DEBUG -D_CRTDBG_MAP_ALLOC /EHsc"</NMakeReBuildCommandLine>
     <NMakeCleanCommandLine Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nmake clean APPVER="5.01"</NMakeCleanCommandLine>

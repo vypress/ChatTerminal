@@ -43,21 +43,24 @@ public:
 		bool operator()(const CHANNEL_INFO* chinfo) const
 		{
 			if(NULL == chinfo) return false;
-			if(NULL == chinfo->name) return false;
-			return 0 == _wcsicmp(_pwsz, chinfo->name);
+			if(chinfo->name.empty()) return false;
+			return 0 == _wcsicmp(_pwsz, chinfo->name.c_str());
 		}
 	};
 
-	typedef std::vector <const USER_INFO*>::const_iterator ConstIteratorOfChannelUsers;
-	typedef std::vector <const USER_INFO*>::iterator IteratorOfChannelUsers;
+	using ConstIteratorOfChannels = std::set< CHANNEL_INFO*, Less >::const_iterator;
+	using ConstIteratorOfChannelUsers = std::vector <const USER_INFO*>::const_iterator;
+	using IteratorOfChannelUsers = std::vector <const USER_INFO*>::iterator;
 
-	typedef std::set< CHANNEL_INFO*, Less >::const_iterator ConstIteratorOfChannels;
+	//typedef std::vector <const USER_INFO*>::const_iterator ConstIteratorOfChannelUsers;
+	//typedef std::vector <const USER_INFO*>::iterator IteratorOfChannelUsers;
+	//typedef std::set< CHANNEL_INFO*, Less >::const_iterator ConstIteratorOfChannels;
 	//typedef std::set< CHANNEL_INFO*, Less >::iterator IteratorOfChannels;
 
 	// Name of channel
-	wchar_t* name;
+	std::wstring name;
 	// Topic of channel
-	wchar_t* topic;
+	std::wstring topic;
 	// Flag is true if you are joined to this channel
 	bool joined;
 	// Flag is true if a channel is secured
@@ -90,8 +93,6 @@ public:
 	// Destructor of a CHANNEL_INFO object
 	~CHANNEL_INFO()
 	{
-		delete[] name;
-		delete[] topic;
 #ifdef CHATTERM_OS_WINDOWS
 		if(hKey) CryptDestroyKey(hKey);
 #endif // CHATTERM_OS_WINDOWS
@@ -131,7 +132,7 @@ public:
 	@pchinfo - returned pointer to an object which describes a channel with name @channel
 	@return - true if you are joined to the channel with name @channel
 	*/
-	static bool isMyChannel(const wchar_t* channel, CHANNEL_INFO** pchinfo);
+	static bool isMyChannel(const std::wstring channel, CHANNEL_INFO** pchinfo);
 
 	/**
 	Creates string of your joined channels; Channels are separated by '#'
@@ -146,7 +147,7 @@ public:
 	@fSecureStatus - a channel type
 	@return - true if name has right prefix, false otherwise
 	*/
-	static bool checkNamePrefix(const wchar_t* channel, SECURED_STATUS fSecureStatus);
+	static bool checkNamePrefix(const std::wstring channel, SECURED_STATUS fSecureStatus);
 
 	/**
 	Checks if a channel name has a correct prefix for specified type and suggests a new name otherwise
@@ -155,7 +156,7 @@ public:
 	@return - NULL if name has right prefix or a pointer to a buffer that contains new suggested name;
 	Returned buffer must be freed by delete[] operator
 	*/
-	static wchar_t* createNameWithPrefix(const wchar_t* channel, SECURED_STATUS fSecureStatus);
+	std::wstring CHANNEL_INFO::createNameWithPrefix(const std::wstring channel, SECURED_STATUS fSecureStatus);
 
 	/**
 	Find a channel by name (uses findChannelByName) and return real name and type of a channel

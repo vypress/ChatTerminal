@@ -579,9 +579,9 @@ int ChatTerminalApp::sendChatLine(const wchar_t* line, size_t line_len)
 		if(pacchinfo)
 		{
 			if(pacchinfo->secured)
-				result = Commands_.SecureChannelMsgQ01(pacchinfo->name, pacchinfo, line, false);
+				result = Commands_.SecureChannelMsgQ01(pacchinfo->name.c_str(), pacchinfo, line, false);
 			else
-				result = Commands_.ChannelMsg2A(pacchinfo->name, line, false);
+				result = Commands_.ChannelMsg2A(pacchinfo->name.c_str(), line, false);
 		}
 		else
 			consoleio::print_line(wszYouNotJoinedToChannels);
@@ -1049,18 +1049,16 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 		{
 			const wchar_t* channel = CHANNEL_INFO::wszMainChannel;
 
-			wchar_t* buf = 0;
+			std::unique_ptr<wchar_t[]> buf(nullptr);
 
 			if(params_len && params && *params)
 			{
-				buf = CHANNEL_INFO::createNameWithPrefix(params, CHANNEL_INFO::NOT_SECURED);
+				buf = std::move(CHANNEL_INFO::createNameWithPrefix(params, CHANNEL_INFO::NOT_SECURED));
 
-				channel = buf ? buf : params;
+				channel = nullptr == buf ? params : buf.get();
 			}
 
 			result = Commands_.Join4(channel);
-
-			delete[] buf;
 		}
 		break;
 
@@ -1145,7 +1143,7 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 		{
 			const wchar_t* channel = 0;
 			wchar_t* passwd = 0;
-			wchar_t* buf = 0;
+			std::unique_ptr<wchar_t[]> buf(nullptr);
 
 			if(params_len && params && *params)
 			{
@@ -1156,14 +1154,13 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 					break;
 				}
 
-				buf = CHANNEL_INFO::createNameWithPrefix(channel, CHANNEL_INFO::SECURED);
-				if(buf) channel = buf;
+				buf = std::move(CHANNEL_INFO::createNameWithPrefix(channel, CHANNEL_INFO::SECURED));
+				if(nullptr!=buf) channel = buf.get();
 			}
 
 			result = Commands_.SecureJoinQ5(channel, passwd);
 
 			delete[] passwd;
-			delete[] buf;
 		}
 		break;
 

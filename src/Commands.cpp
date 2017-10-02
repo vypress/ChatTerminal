@@ -543,7 +543,7 @@ int Commands::createMessageFields(char*& pMessage, char chType, MSG_FIELD* pFiel
 	return static_cast<int>(seek-pMessage);
 }
 
-int Commands::SecureNewTopicQ3(const wchar_t* channel, const CHANNEL_INFO* pcchinfo, const wchar_t* topic)
+int Commands::SecureNewTopicQ3(const std::wstring& channel, const CHANNEL_INFO* pcchinfo, const wchar_t* topic)
 {
 	/* The command takes only one parameter - topic;
 	The channels is always a current channel
@@ -572,7 +572,7 @@ int Commands::SecureNewTopicQ3(const wchar_t* channel, const CHANNEL_INFO* pcchi
 	WORD TopicLentgh = (WORD)wcslen(topic);
 	/*'Q' '3' Channel h00 TopicLength Topic ' (From) ' SignatureSize Signature*/
 	MSG_FIELD fieldsQ3[6] = {{CHAR_FIELD,1,0, false}
-							,{STRING_FIELD,(wcslen(channel)+1)*sizeof(wchar_t),channel,false}
+							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
 							,{LEN_OF_STRING_FIELD, sizeof(TopicLentgh),0,false}
 							,{STRING_FIELD,(TopicLentgh+1)*sizeof(wchar_t),topic,false}
 							,{SIGNATURE_LEN_FIELD, sizeof(WORD),0,false}, {QSIGNATURE_FIELD, 0,0,false}};
@@ -598,14 +598,14 @@ int Commands::SecureNewTopicQ3(const wchar_t* channel, const CHANNEL_INFO* pcchi
 	return send_err;
 }
 
-int Commands::ReplySecureTopicQ2(const wchar_t* channel, const CHANNEL_INFO* pcchinfo, const wchar_t* topic, const USER_INFO* pinfo)
+int Commands::ReplySecureTopicQ2(const std::wstring&  channel, const CHANNEL_INFO* pcchinfo, const wchar_t* topic, const USER_INFO* pinfo)
 {
 	int send_err = -1;
 
 	WORD TopicLentgh = (WORD)wcslen(topic);
 	/*'Q' '2' Channel h00 TopicLength Topic SignatureSize Signature*/
 	MSG_FIELD fieldsQ2[6] = {{CHAR_FIELD,1,0,false}
-							,{STRING_FIELD,(wcslen(channel)+1)*sizeof(wchar_t),channel,false}
+							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
 							,{LEN_OF_STRING_FIELD, sizeof(TopicLentgh),0,false}
 							,{STRING_FIELD,(wcslen(topic)+1)*sizeof(wchar_t),topic,false}
 							,{SIGNATURE_LEN_FIELD, sizeof(WORD),0,false}, {QSIGNATURE_FIELD, 0,0,false}};
@@ -632,14 +632,14 @@ int Commands::ReplySecureTopicQ2(const wchar_t* channel, const CHANNEL_INFO* pcc
 	return send_err;
 }
 
-int Commands::ReplySecureHereQ4(const wchar_t* channel, const USER_INFO* pinfo, int delay)
+int Commands::ReplySecureHereQ4(const std::wstring& channel, const USER_INFO* pinfo, int delay)
 {
 	int send_err = -1;
 
 	/*'Q' '4' To h00 Channel h00 From h00 RemoteActive SignatureSize Signature*/
 	MSG_FIELD fieldsQ4[8] = {{CHAR_FIELD,1,0,false}
 							,{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick(),false}
-							,{STRING_FIELD,(wcslen(channel)+1)*sizeof(wchar_t),channel,false}
+							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
 							,{STRING_FIELD,(wcslen(theApp.Me_.getNick())+1)*sizeof(wchar_t),theApp.Me_.getNick(),false}
 							,{CHAR_FIELD,1,0,false}
 							,{QSIGNATURE_FIELD, 0,0,false},{SIGNATURE_LEN_FIELD, sizeof(WORD),0,false}};
@@ -661,11 +661,11 @@ int Commands::ReplySecureHereQ4(const wchar_t* channel, const USER_INFO* pinfo, 
 	return send_err;
 }
 
-int Commands::SecureHereQ8(const wchar_t* channel)
+int Commands::SecureHereQ8(const std::wstring& channel)
 {
 	int send_err = -1;
 
-	if(0==channel || 0==*channel)
+	if(channel.length()<1)
 	{
 		consoleio::print_line( wszNoChannel, channel);
 		return 0;
@@ -680,7 +680,7 @@ int Commands::SecureHereQ8(const wchar_t* channel)
 	/*'Q' '8' From h00 Channel h00 Signature SignatureSize*/
 	MSG_FIELD fieldsQ8[5] = {{CHAR_FIELD,1,0,false}
 							,{STRING_FIELD,(wcslen(theApp.Me_.getNick())+1)*sizeof(wchar_t),theApp.Me_.getNick(),false}
-							,{STRING_FIELD,(wcslen(channel)+1)*sizeof(wchar_t),channel,false}
+							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
 							,{QSIGNATURE_FIELD, 0,0,false}, {SIGNATURE_LEN_FIELD, sizeof(WORD),0,false}};
 
 	fieldsQ8[0].data.ch_ = '8';
@@ -699,7 +699,7 @@ int Commands::SecureHereQ8(const wchar_t* channel)
 	return send_err;
 }
 
-int Commands::SecureLeaveQ7(const wchar_t* channel)
+int Commands::SecureLeaveQ7(const std::wstring& channel)
 {
 	int send_err = -1;
 
@@ -755,7 +755,7 @@ int Commands::SecureLeaveQ7(const CHANNEL_INFO* pcchinfo)
 	return send_err;
 }
 
-int Commands::SecureChannelMsgQ01(const wchar_t* channel, const CHANNEL_INFO* pcchinfo, const wchar_t* text, bool fMe)
+int Commands::SecureChannelMsgQ01(const std::wstring& channel, const CHANNEL_INFO* pcchinfo, const wchar_t* text, bool fMe)
 {
 	/* The command takes only one parameter - text;
 	The channels is always a current channel
@@ -784,7 +784,7 @@ int Commands::SecureChannelMsgQ01(const wchar_t* channel, const CHANNEL_INFO* pc
 	/*'Q' '0' Channel h00 From h00 MessageTextLentgh MessageText h00 SignatureSize Signature*/
 	WORD MessageTextLentgh = static_cast<WORD>(wcslen(text));
 	MSG_FIELD fieldsQ10[7] = {{CHAR_FIELD,1,0,false}
-							,{STRING_FIELD,(wcslen(channel)+1)*sizeof(wchar_t),channel,false}
+							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
 							,{STRING_FIELD,(wcslen(theApp.Me_.getNick())+1)*sizeof(wchar_t),theApp.Me_.getNick(),false}
 							,{LEN_OF_STRING_FIELD, sizeof(MessageTextLentgh),0,false}
 							,{STRING_FIELD,(MessageTextLentgh+1)*sizeof(wchar_t),text,false}
@@ -811,7 +811,7 @@ int Commands::SecureChannelMsgQ01(const wchar_t* channel, const CHANNEL_INFO* pc
 	return send_err;
 }
 
-int Commands::SecureJoinQ5(const wchar_t* channel, const wchar_t* passwd)
+int Commands::SecureJoinQ5(const std::wstring& channel, const wchar_t* passwd)
 {
 	int send_err = -1;
 
@@ -834,7 +834,7 @@ int Commands::SecureJoinQ5(const wchar_t* channel, const wchar_t* passwd)
 
 	/*'Q' '5' From h00 Channel h00 Status Gender (16)MD5Hash SignatureSize Signature*/
 	MSG_FIELD fieldsQ5[8] = {{CHAR_FIELD,1,0,false}, {STRING_FIELD,(wcslen(theApp.Me_.getNick())+1)*sizeof(wchar_t),theApp.Me_.getNick(),false}
-							,{STRING_FIELD,(wcslen(channel)+1)*sizeof(wchar_t),channel,false}
+							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
 							,{CHAR_FIELD,1,0,false},{CHAR_FIELD,1,0,false}
 							,{BYTES_FIELD,sizeof(hash),0,false}
 							,{QSIGNATURE_FIELD, 0,0,false},{SIGNATURE_LEN_FIELD, sizeof(WORD),0,false}};
@@ -885,14 +885,14 @@ int Commands::SecureJoinQ5(const wchar_t* channel, const wchar_t* passwd)
 	return send_err;
 }
 
-int Commands::ReplySecureJoinQ6(const wchar_t* channel, char result, const USER_INFO* pinfo, int delay)
+int Commands::ReplySecureJoinQ6(const std::wstring& channel, char result, const USER_INFO* pinfo, int delay)
 {
 	int send_err = -1;
 
 	/*'Q' '6' To h00 Channel h00 Result Signature SignatureSize*/
 	MSG_FIELD fieldsQ6[6] = {{CHAR_FIELD,1,0,false}
 							,{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick(),false}
-							,{STRING_FIELD,(wcslen(channel)+1)*sizeof(wchar_t),channel,false}
+							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
 							,{CHAR_FIELD, 1,0,false}
 							,{QSIGNATURE_FIELD, 0,0,false}, {SIGNATURE_LEN_FIELD, sizeof(WORD),0,false}};
 
@@ -1006,7 +1006,7 @@ int Commands::ReplyConfirmMassTextMsg7(const wchar_t* datagramId, const USER_INF
 	return send_err;
 }
 
-int Commands::ReplyTopicC(const wchar_t* channel, const wchar_t* topic, const USER_INFO* pinfo, int delay)
+int Commands::ReplyTopicC(const std::wstring& channel, const wchar_t* topic, const USER_INFO* pinfo, int delay)
 {
 	int send_err = -1;
 
@@ -1110,13 +1110,13 @@ int Commands::ReplyConfirmBeepH(const USER_INFO* pinfo)
 	return send_err;
 }
 
-int Commands::ReplyHereK(const wchar_t* channel, const USER_INFO* pinfo, int delay)
+int Commands::ReplyHereK(const std::wstring& channel, const USER_INFO* pinfo, int delay)
 {
 	int send_err = -1;
 
 	/*'K' To h00 Channel h00 From h00 RemoteActive*/
 	MSG_FIELD fieldsK[4] = {{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick(),false}
-				,{STRING_FIELD,(wcslen(channel)+1)*sizeof(wchar_t),channel,false}
+				,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
 				,{STRING_FIELD,(wcslen(theApp.Me_.getNick())+1)*sizeof(wchar_t),theApp.Me_.getNick(),false}
 				,{CHAR_FIELD,1,0,false}};
 
@@ -1158,7 +1158,7 @@ int Commands::ReplyChannelsO(const USER_INFO* pinfo)
 	return send_err;
 }
 
-int Commands::Join4(const wchar_t* channel)
+int Commands::Join4(const std::wstring& channel)
 {
 	int msg_size = 0, send_err = -1;
 
@@ -1267,7 +1267,7 @@ int Commands::Join4(const wchar_t* channel)
 	return send_err;
 }
 
-int Commands::ChannelMsg2A(const wchar_t* channel, const wchar_t* text, bool fMe)
+int Commands::ChannelMsg2A(const std::wstring& channel, const wchar_t* text, bool fMe)
 {
 	/* The command takes only one parameter - text;
 	The channels is always a current channel
@@ -1515,7 +1515,7 @@ int Commands::NickName3(const wchar_t* nick)
 	return send_err;
 }
 
-int Commands::NewTopicB(const wchar_t* channel, const wchar_t* topic)
+int Commands::NewTopicB(const std::wstring& channel, const wchar_t* topic)
 {
 	/* The command takes only one parameter - topic;
 	The channels is always a current channel
@@ -1680,7 +1680,7 @@ int Commands::InfoF(const wchar_t* to)
 	return send_err;
 }
 
-int Commands::HereL(const wchar_t* channel)
+int Commands::HereL(const std::wstring& channel)
 {
 	int send_err = -1;
 
@@ -1699,7 +1699,7 @@ int Commands::HereL(const wchar_t* channel)
 	//send Here
 	/*'L' From h00 Channel h00*/
 	MSG_FIELD fieldsL[2] = {{STRING_FIELD,(wcslen(theApp.Me_.getNick())+1)*sizeof(wchar_t),theApp.Me_.getNick(),false}
-							,{STRING_FIELD,(wcslen(channel)+1)*sizeof(wchar_t),channel,false}};
+							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}};
 
 	char* pMessage = 0;
 	int msg_size = createMessageFields(pMessage, 'L', fieldsL, _ARRAYSIZE(fieldsL));
@@ -1762,7 +1762,7 @@ int Commands::List0()
 	return send_err;
 }
 
-int Commands::Leave5(const wchar_t* channel)
+int Commands::Leave5(const std::wstring& channel)
 {
 	int send_err = -1;
 
