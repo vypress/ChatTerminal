@@ -282,8 +282,8 @@ int Commands::sendBroadcastMsg(const char* buf, int len)
 	bool result = true;
 	while(it!=end)
 	{
-		int result = (*it)->psender_->sendTo((*it)->psaddr_, buf, len);
-		if(result != len)
+		int send_result = (*it)->psender_->sendTo((*it)->psaddr_, buf, len);
+		if(send_result != len)
 		{
 			wchar_t* wszToAddr = networkio::sockaddr_to_string((*it)->psaddr_, sizeof(sockaddr_in6));
 			consoleio::print_line( wszUnableToSendMsg, wszToAddr);
@@ -667,13 +667,13 @@ int Commands::SecureHereQ8(const std::wstring& channel)
 
 	if(channel.length()<1)
 	{
-		consoleio::print_line( wszNoChannel, channel);
+		consoleio::print_line( wszNoChannel, channel.c_str());
 		return 0;
 	}
 
 	if(!CHANNEL_INFO::isMyChannel(channel, 0))
 	{
-		consoleio::print_line( wszYouNotInChannel, channel);
+		consoleio::print_line( wszYouNotInChannel, channel.c_str());
 		return 0;
 	}
 
@@ -703,7 +703,7 @@ int Commands::SecureLeaveQ7(const std::wstring& channel)
 {
 	int send_err = -1;
 
-	if(0==channel || 0==*channel)
+	if(channel.empty())
 	{
 		consoleio::print_line( wszNoChannel, channel);
 		return 0;
@@ -734,7 +734,7 @@ int Commands::SecureLeaveQ7(const CHANNEL_INFO* pcchinfo)
 	/*'Q' '7' From h00 Channel h00 Gender Signature SignatureSize*/
 	MSG_FIELD fieldsQ7[6] = {{CHAR_FIELD,1,0,false}
 							,{STRING_FIELD,(wcslen(theApp.Me_.getNick())+1)*sizeof(wchar_t),theApp.Me_.getNick(),false}
-							,{STRING_FIELD,(wcslen(pcchinfo->name)+1)*sizeof(wchar_t),pcchinfo->name,false}
+							,{STRING_FIELD,(pcchinfo->name.length()+1)*sizeof(wchar_t),pcchinfo->name.c_str(),false}
 							,{CHAR_FIELD,1,0,false}
 							,{QSIGNATURE_FIELD, 0,0,false}, {SIGNATURE_LEN_FIELD, sizeof(WORD),0,false}};
 
@@ -815,7 +815,7 @@ int Commands::SecureJoinQ5(const std::wstring& channel, const wchar_t* passwd)
 {
 	int send_err = -1;
 
-	if(0==channel || 0==*channel)
+	if(channel.empty())
 	{
 		consoleio::print_line( wszNoChannel, channel);
 		return 0;
@@ -855,7 +855,7 @@ int Commands::SecureJoinQ5(const std::wstring& channel, const wchar_t* passwd)
 
 	if(send_err == msg_size)
 	{
-		const CHANNEL_INFO* pcchinfo = CHANNEL_INFO::addChannelMember(channel, &theApp.Me_, CHANNEL_INFO::SECURED);
+		const CHANNEL_INFO* pcchinfo = CHANNEL_INFO::addChannelMember(channel.c_str(), &theApp.Me_, CHANNEL_INFO::SECURED);
 
 		if(0 == pcchinfo || !pcchinfo->joined || !pcchinfo->secured)
 		{
@@ -1055,22 +1055,22 @@ int Commands::ReplyInfoG(const USER_INFO* pinfo)
 
 	MSG_FIELD fieldsG[18] = {{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t), pinfo->getNick(),false}
 		,{STRING_FIELD,(wcslen(theApp.Me_.getNick())+1)*sizeof(wchar_t),theApp.Me_.getNick(),false}
-		,{STRING_FIELD, (theApp.Me_.pinfo->computer_name.length()+1)*sizeof(wchar_t), theApp.Me_.pinfo->computer_name.c_str(),false}
-		,{STRING_FIELD, (theApp.Me_.pinfo->user_name.length()+1)*sizeof(wchar_t), theApp.Me_.pinfo->user_name.c_str(),false}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.computer_name.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.computer_name.c_str(),false}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.user_name.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.user_name.c_str(),false}
 		,{STRING_FIELD, sizeof(wszIpAddresses), wszIpAddresses,false}
 		,{STRING_FIELD, (strChannels.length()+1)*sizeof(wchar_t), strChannels.c_str(),false}
 		,{STRING_FIELD, sizeof(wszCurrentAA),wszCurrentAA,false}
-		,{STRING_FIELD, (theApp.Me_.pinfo->domain_name.length()+1)*sizeof(wchar_t), theApp.Me_.pinfo->domain_name.c_str(),false}
-		,{STRING_FIELD, (theApp.Me_.pinfo->os.length()+1)*sizeof(wchar_t), theApp.Me_.pinfo->os.c_str(),false}
-		,{STRING_FIELD, (theApp.Me_.pinfo->chat_software.length()+1)*sizeof(wchar_t), theApp.Me_.pinfo->chat_software.c_str(),false}
-		,{STRING_FIELD, (theApp.Me_.pinfo->full_name.length()+1)*sizeof(wchar_t), theApp.Me_.pinfo->full_name.c_str(),false}
-		,{STRING_FIELD, (theApp.Me_.pinfo->job.length()+1)*sizeof(wchar_t), theApp.Me_.pinfo->job.c_str(),false}
-		,{STRING_FIELD, (theApp.Me_.pinfo->department.length()+1)*sizeof(wchar_t), theApp.Me_.pinfo->department.c_str(),false}
-		,{STRING_FIELD, (theApp.Me_.pinfo->phone_work.length()+1)*sizeof(wchar_t), theApp.Me_.pinfo->phone_work.c_str(),false}
-		,{STRING_FIELD, (theApp.Me_.pinfo->phone_mob.length()+1)*sizeof(wchar_t), theApp.Me_.pinfo->phone_mob.c_str(),false}
-		,{STRING_FIELD, (theApp.Me_.pinfo->www.length()+1)*sizeof(wchar_t), theApp.Me_.pinfo->www.c_str(),false}
-		,{STRING_FIELD, (theApp.Me_.pinfo->email.length()+1)*sizeof(wchar_t), theApp.Me_.pinfo->email.c_str(),false}
-		,{STRING_FIELD, (theApp.Me_.pinfo->address.length()+1)*sizeof(wchar_t), theApp.Me_.pinfo->address.c_str(),false}};
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.domain_name.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.domain_name.c_str(),false}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.os.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.os.c_str(),false}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.chat_software.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.chat_software.c_str(),false}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.full_name.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.full_name.c_str(),false}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.job.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.job.c_str(),false}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.department.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.department.c_str(),false}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.phone_work.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.phone_work.c_str(),false}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.phone_mob.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.phone_mob.c_str(),false}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.www.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.www.c_str(),false}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.email.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.email.c_str(),false}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.address.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.address.c_str(),false}};
 
 	char* pMessage = 0;
 	int msg_size = createMessageFields(pMessage, 'G', fieldsG, _ARRAYSIZE(fieldsG));
@@ -1361,7 +1361,7 @@ int Commands::MassTextMsgE(const wchar_t* text)
 
 		if(pMessage)
 		{
-			send_err = sendMsgTo(pMessage, msg_size, *it);
+			send_err = sendMsgTo(pMessage, msg_size, (*it).get());
 			delete[] pMessage;
 		}
 
@@ -1551,7 +1551,7 @@ int Commands::NewTopicB(const std::wstring& channel, const wchar_t* topic)
 
 	//send NewTopic
 	/*'B' Channel h00 Topic ' (From) ' h00 Signature*/
-	MSG_FIELD fieldsB[3] = {{STRING_FIELD,(wcslen(channel)+1)*sizeof(wchar_t), channel,false}
+	MSG_FIELD fieldsB[3] = {{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t), channel.c_str(),false}
 							,{STRING_FIELD,(topic_len+1)*sizeof(wchar_t),topic,false}
 							,{SIGNATURE_FIELD,0,0,false}};
 
@@ -1684,15 +1684,15 @@ int Commands::HereL(const std::wstring& channel)
 {
 	int send_err = -1;
 
-	if(0==channel || 0==*channel)
+	if(channel.empty())
 	{
-		consoleio::print_line( wszNoChannel, channel);
+		consoleio::print_line( wszNoChannel, channel.c_str());
 		return 0;
 	}
 
 	if(!CHANNEL_INFO::isMyChannel(channel, 0))
 	{
-		consoleio::print_line( wszYouNotInChannel, channel);
+		consoleio::print_line( wszYouNotInChannel, channel.c_str());
 		return 0;
 	}
 
@@ -1766,9 +1766,9 @@ int Commands::Leave5(const std::wstring& channel)
 {
 	int send_err = -1;
 
-	if(0==channel || 0==*channel)
+	if(channel.empty())
 	{
-		consoleio::print_line( wszNoChannel, channel);
+		consoleio::print_line( wszNoChannel, channel.c_str());
 		return 0;
 	}
 

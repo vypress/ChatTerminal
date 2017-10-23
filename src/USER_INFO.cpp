@@ -39,14 +39,14 @@ const wchar_t* const USER_INFO::colors_[16]={L"black", L"blue",L"green",L"aqua"
 						,L"light red",L"light purple",L"light yellow",L"bright white"};
 
 //It must be accessed in ContainersMonitor CONTAINERS_MONITOR Critical Section
-std::set< USER_INFO*, USER_INFO::Less > USER_INFO::SetOfUsers_;
+std::set< std::unique_ptr<USER_INFO>, USER_INFO::Less > USER_INFO::SetOfUsers_;
 
 USER_INFO::ConstIteratorOfUsers USER_INFO::findUsersByReceiver(ConstIteratorOfUsers it, const networkio::Receiver* pcrcvr)
 {
 	ConstIteratorOfUsers end = SetOfUsers_.end();
 	while(it != end)
 	{
-		if(*it == &theApp.Me_)
+		if((*it).get() == &theApp.Me_)
 		{
 			if(pcrcvr->isEchoedMessage())
 				return it;

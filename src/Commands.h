@@ -231,7 +231,7 @@ class Commands
 				when_.tv_sec+=1;
 			}
 			
-#endif // CHATTERM_OS_WINDOWS		
+#endif // CHATTERM_OS_WINDOWS
 			what_=new char[what_len_];
 			memcpy(what_, buf, what_len_);
 			memcpy(&to_, pinfo->naddr_info.psaddr_, sizeof(sockaddr_in6));

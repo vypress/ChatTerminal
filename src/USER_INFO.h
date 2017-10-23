@@ -108,7 +108,7 @@ public:
 		}
 	};
 
-	typedef std::set< USER_INFO*, Less >::const_iterator ConstIteratorOfUsers;
+	using ConstIteratorOfUsers = std::set< std::unique_ptr<USER_INFO>, Less >::const_iterator;
 
 	// Universally Unique Identifiers (UUIDs) of the user
 #ifdef CHATTERM_OS_WINDOWS
@@ -170,9 +170,6 @@ public:
 	// A network address of the user
 	networkio::NETADDR_INFO naddr_info;
 
-	//Pointer to object that contains user personal information
-	PERSONAL_INFO* pinfo;
-
 	USER_INFO()
 		: ver(0x00020001),//0x00010009 1.9 for TextMsg
 		license_id(0),
@@ -190,7 +187,6 @@ public:
 		last_ping(0),
 		beeps(0),
 		infos(0),
-		pinfo(0),
 		nick_(0)
 	{
 #ifdef CHATTERM_OS_WINDOWS
@@ -216,12 +212,6 @@ public:
 			delete[] pub_key;
 			pub_key = 0;
 			pub_key_size = 0;
-		}
-
-		if(pinfo)
-		{
-			delete pinfo;
-			pinfo = 0;
 		}
 	}
 
@@ -315,7 +305,7 @@ public:
 	static const wchar_t* const NullNick_;
 
 	// Set of all users discovered from a network
-	static std::set< USER_INFO*, Less > SetOfUsers_;
+	static std::set< std::unique_ptr<USER_INFO>, Less > SetOfUsers_;
 
 	// Maximum nickname length
 	static const size_t MaxNickLength = 35;

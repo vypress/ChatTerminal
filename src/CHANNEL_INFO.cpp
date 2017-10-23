@@ -4,7 +4,9 @@ Implementation of the CHANNEL_INFO class
 Copyright (c) 2017 VyPRESS Research, LLC. All rights reserved.
 For conditions of distribution and use, see copyright notice in ChatTerminal.h
 */
-#include <algorithm>
+
+#include <algorithm>    // std::lexicographical_compare
+#include <cctype>       // std::tolower
 
 #include "ChatTerminal.h"
 #include "CHANNEL_INFO.h"
@@ -16,12 +18,11 @@ const wchar_t CHANNEL_INFO::wszMainChannel[6] = L"#Main";
 const CHANNEL_INFO* CHANNEL_INFO::ActiveChannel_ = 0;
 std::set< CHANNEL_INFO*, CHANNEL_INFO::Less > CHANNEL_INFO::SetOfChannels_;
 
-CHANNEL_INFO::ConstIteratorOfChannels CHANNEL_INFO::findChannelByName(const wchar_t* channel, bool fJoined)
+CHANNEL_INFO::ConstIteratorOfChannels CHANNEL_INFO::findChannelByName(const std::wstring& channel, bool fJoined)
 {
 	//It will create a name with a wchChPrefix prefix first
-	std::unique_ptr<wchar_t[]> buf=std::move(createNameWithPrefix(channel, SEC_UNKNOWN));
-
-	if(buf) channel = buf.get();
+	std::wstring with_prefix(createNameWithPrefix(channel, SEC_UNKNOWN));
+	if(!with_prefix.empty()) channel = buf.get();
 
 	/*
 	std::function<bool (const CHANNEL_INFO*)> comparator = [&channel](const CHANNEL_INFO* chinfo)
@@ -32,7 +33,7 @@ CHANNEL_INFO::ConstIteratorOfChannels CHANNEL_INFO::findChannelByName(const wcha
 	};
 	*/
 
-	ConstIteratorOfChannels it_ch = std::find_if(SetOfChannels_.begin(), SetOfChannels_.end(), NameComparator(channel));
+	CHANNEL_INFO::ConstIteratorOfChannels it_ch = std::find_if(SetOfChannels_.begin(), SetOfChannels_.end(), NameComparator(channel.c_str()));
 
 	if(fJoined && (it_ch != SetOfChannels_.end()))
 	{
@@ -113,7 +114,7 @@ bool CHANNEL_INFO::getNameWithPrefix(const wchar_t*& channel, bool& fSecured)
 	return true;
 }
 
-bool CHANNEL_INFO::checkNamePrefix(const std::wstring channel, SECURED_STATUS fSecureStatus)
+bool CHANNEL_INFO::checkNamePrefix(const std::wstring& channel, SECURED_STATUS fSecureStatus)
 {
 	if(channel.length()<1) return false;
 
@@ -135,7 +136,7 @@ bool CHANNEL_INFO::checkNamePrefix(const std::wstring channel, SECURED_STATUS fS
 	return false;
 }
 
-std::wstring CHANNEL_INFO::createNameWithPrefix(const std::wstring channel, SECURED_STATUS fSecureStatus)
+std::wstring CHANNEL_INFO::createNameWithPrefix(const std::wstring& channel, SECURED_STATUS fSecureStatus)
 {
 	std::wstring name_with_prefix;
 
@@ -146,7 +147,7 @@ std::wstring CHANNEL_INFO::createNameWithPrefix(const std::wstring channel, SECU
 	std::wstring name_with_prefix;
 	name_with_prefix.reserve(channel.length() + 2);
 
-	name_with_prefix.assign(1, SECURED == fSecureStatus ? wchSecureChPrefix_ : wchChPrefix_;);
+	name_with_prefix.assign(1, SECURED == fSecureStatus ? wchSecureChPrefix_ : wchChPrefix_);
 	name_with_prefix.append(channel);
 
 	return name_with_prefix;
@@ -168,7 +169,7 @@ bool CHANNEL_INFO::addMember(const USER_INFO* member)
 	return true;
 }
 
-const CHANNEL_INFO* CHANNEL_INFO::addChannelMember(const wchar_t* channel, const USER_INFO* member, SECURED_STATUS fSecureStatus)
+const CHANNEL_INFO* CHANNEL_INFO::addChannelMember(const std::wstring& channel, const USER_INFO* member, SECURED_STATUS fSecureStatus)
 {
 	if(!channel || !*channel) return nullptr;
 

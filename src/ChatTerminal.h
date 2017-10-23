@@ -116,6 +116,9 @@ public:
 	// Globally used object that describes information about you
 	USER_INFO Me_;
 
+	//Pointer to object that contains user personal information
+	PERSONAL_INFO MyPersonalInfo_;
+
 	// Globally used arrays of Sender and Receiver objects, that are used to send and receive messages over the network
 	// We do not use std::auto_ptr<> because pointers to Sender are temporary shared
 	// between several containers (mapIdIf, mapIdSender, mapIdIfSender) in initNetConfigFromXml()
@@ -383,8 +386,8 @@ public:
 
 private:
 	ContainersMonitor(const ContainersMonitor&);
-	ContainersMonitor& operator=(const ContainersMonitor&);
-	ContainersMonitor* operator&();
+	ContainersMonitor& operator=(const ContainersMonitor&) = delete;
+	ContainersMonitor* operator&() = delete;
 
 	static void Initialize()
 	{
