@@ -171,7 +171,7 @@ bool CHANNEL_INFO::addMember(const USER_INFO* member)
 
 const CHANNEL_INFO* CHANNEL_INFO::addChannelMember(const std::wstring& channel, const USER_INFO* member, SECURED_STATUS fSecureStatus)
 {
-	if(!channel || !*channel) return nullptr;
+	if(channel.empty()) return nullptr;
 
 	ConstIteratorOfChannels it_ch = findChannelByName(channel, false);
 
@@ -199,9 +199,9 @@ const CHANNEL_INFO* CHANNEL_INFO::addChannelMember(const std::wstring& channel, 
 		}
 
 		const wchar_t wchPrefix = pchinfo->secured ? wchSecureChPrefix_ : wchChPrefix_;
-		if(wchPrefix != *channel)
+		if(wchPrefix != channel[0])
 		{
-			size_t buflen = wcslen(channel) + 1;
+			size_t buflen = channel.length() + 1;
 			pchinfo->name.reserve(buflen);
 
 			pchinfo->name.assign(1, wchPrefix);
@@ -209,7 +209,7 @@ const CHANNEL_INFO* CHANNEL_INFO::addChannelMember(const std::wstring& channel, 
 		}
 		else
 		{
-			pchinfo->name.assign(channel);
+			pchinfo->name = channel;
 		}
 
 		SetOfChannels_.insert(pchinfo);

@@ -233,10 +233,10 @@ bool Commands::getToInfo(const wchar_t* to, const USER_INFO** ppinfo)
 		return false;
 	}
 
-	USER_INFO* pUserInfo = 0;
-	bool bInList = USER_INFO::isUserInList(to, &pUserInfo);
+	std::shared_ptr<USER_INFO> pUserInfo;
+	bool bInList = USER_INFO::isUserInList(to, pUserInfo);
 
-	if(ppinfo) *ppinfo = pUserInfo;
+	if(ppinfo) *ppinfo = pUserInfo.get();
 
 	if(!bInList)
 	{
@@ -1013,7 +1013,7 @@ int Commands::ReplyTopicC(const std::wstring& channel, const wchar_t* topic, con
 	/*'C' To h00 Channel h00 Topic h00*/
 
 	MSG_FIELD fieldsC[3] = {{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t), pinfo->getNick(),false}
-					,{STRING_FIELD,(wcslen(channel)+1)*sizeof(wchar_t), channel,false}
+					,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t), channel.c_str(),false}
 					,{STRING_FIELD,(wcslen(topic)+1)*sizeof(wchar_t), topic,false}};
 
 	char* pMessage = 0;
@@ -1162,13 +1162,13 @@ int Commands::Join4(const std::wstring& channel)
 {
 	int msg_size = 0, send_err = -1;
 
-	if(0==channel || 0==*channel)
+	if(channel.empty())
 	{
 		consoleio::print_line( wszNoChannel, channel);
 		return 0;
 	}
 
-	size_t name_len = wcslen(channel);
+	size_t name_len = channel.length();
 
 	if(name_len > CHANNEL_INFO::MaxNameLength)
 	{
@@ -1176,7 +1176,7 @@ int Commands::Join4(const std::wstring& channel)
 		return 0;
 	}
 
-	if(0 == _wcsicmp(channel, CHANNEL_INFO::wszMainChannel))
+	if(0 == _wcsicmp(channel.c_str(), CHANNEL_INFO::wszMainChannel))
 	{
 		//send JoinMain
 		DWORD dwColor = byteToDwordColor(theApp.Me_.color);
@@ -1231,7 +1231,7 @@ int Commands::Join4(const std::wstring& channel)
 		//send Join
 		/*'4' From h00 Channel h00 Status Gender*/
 		MSG_FIELD fields4[4] = {{STRING_FIELD,(wcslen(theApp.Me_.getNick())+1)*sizeof(wchar_t),theApp.Me_.getNick(),false}
-								,{STRING_FIELD,(name_len+1)*sizeof(wchar_t),channel,false}
+								,{STRING_FIELD,(name_len+1)*sizeof(wchar_t),channel.c_str(),false}
 								,{CHAR_FIELD,1,0,false},{CHAR_FIELD,1,0,false}};
 		
 		fields4[2].data.ch_ = theApp.Me_.status;
@@ -1305,7 +1305,7 @@ int Commands::ChannelMsg2A(const std::wstring& channel, const wchar_t* text, boo
 	/*'2' Channel h00 From h00 MessageText h00 Signature*/
 	//send ChannelMeMsg
 	/*'A' Channel h00 From h00 MessageText h00 Signature*/
-	MSG_FIELD fields2[4] = {{STRING_FIELD,(wcslen(channel)+1)*sizeof(wchar_t),channel,false}
+	MSG_FIELD fields2[4] = {{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
 							,{STRING_FIELD,(wcslen(theApp.Me_.getNick())+1)*sizeof(wchar_t),theApp.Me_.getNick(),false}
 							,{STRING_FIELD,(textlen+1)*sizeof(wchar_t),text,false}
 							,{SIGNATURE_FIELD,0,0,false}};
@@ -1797,7 +1797,7 @@ int Commands::Leave5(const CHANNEL_INFO* pcchinfo)
 	//send Leave
 	/*'5' From h00 Channel h00 Gender Signature*/
 	MSG_FIELD fields5[4] = {{STRING_FIELD,(wcslen(theApp.Me_.getNick())+1)*sizeof(wchar_t),theApp.Me_.getNick(),false}
-						,{STRING_FIELD,(wcslen(pcchinfo->name)+1)*sizeof(wchar_t),pcchinfo->name,false}
+						,{STRING_FIELD,(pcchinfo->name.length()+1)*sizeof(wchar_t),pcchinfo->name.c_str(),false}
 						,{CHAR_FIELD,1,0,false}
 						,{SIGNATURE_FIELD,0,0,false}};
 

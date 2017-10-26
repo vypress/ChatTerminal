@@ -108,7 +108,7 @@ public:
 		}
 	};
 
-	using ConstIteratorOfUsers = std::set< std::unique_ptr<USER_INFO>, Less >::const_iterator;
+	using ConstIteratorOfUsers = std::set< std::shared_ptr<USER_INFO>, Less >::const_iterator;
 
 	// Universally Unique Identifiers (UUIDs) of the user
 #ifdef CHATTERM_OS_WINDOWS
@@ -276,7 +276,7 @@ public:
 	          false otherwise. This function returns in ppinfo a pointer to a user object
 	          regardless of blocking of the user
 	*/
-	static bool isUserInList(const wchar_t* name, USER_INFO** ppinfo);
+	static bool isUserInList(const wchar_t* name, std::shared_ptr<USER_INFO>& ppinfo);
 
 	/**
 	Removes a user with name from the list of users;
@@ -305,7 +305,7 @@ public:
 	static const wchar_t* const NullNick_;
 
 	// Set of all users discovered from a network
-	static std::set< std::unique_ptr<USER_INFO>, Less > SetOfUsers_;
+	static std::set< std::shared_ptr<USER_INFO>, Less > SetOfUsers_;
 
 	// Maximum nickname length
 	static const size_t MaxNickLength = 35;

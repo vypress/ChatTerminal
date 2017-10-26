@@ -2686,7 +2686,7 @@ void ChatTerminalApp::signalAlarm(int signo)
 			continue; // to avoid it++
 		}
 
-		const std::unique_ptr<USER_INFO>& pinfo = *it;
+		const std::shared_ptr<USER_INFO>& pinfo = *it;
 
 		//if(pinfo.get() != &theApp.Me_)
 		{

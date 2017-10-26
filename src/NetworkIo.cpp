@@ -1916,7 +1916,7 @@ namespace networkio
 	void Receiver::removeOldPackets(const PKT_DATA& pkt)
 	{
 		std::deque<PKT_DATA>::const_iterator end = queOfPackets_.end();
-		std::deque<PKT_DATA>::iterator it = queOfPackets_.begin();
+		std::deque<PKT_DATA>::const_iterator it = queOfPackets_.begin();
 
 		while((it!=end) && (nPacketsQueTimeInterval_ < difftime(pkt.ct, it->ct)))
 			++it;
@@ -1962,12 +1962,12 @@ namespace networkio
 
 					while(it != USER_INFO::SetOfUsers_.end())
 					{
-						const USER_INFO* pinfo = *it;
+						const USER_INFO* pUserInfo = *it;
 
 						//if it is my packet then flood is impossible
-						if(pinfo && (pinfo != &theApp.Me_) && (pinfo->flood<1))
+						if(pUserInfo && (pUserInfo != &theApp.Me_) && (pUserInfo->flood<1))
 						{
-							theApp.Commands_.FloodZ(pinfo, nFloodProtectionTimeInterval_);
+							theApp.Commands_.FloodZ(pUserInfo, nFloodProtectionTimeInterval_);
 						}
 
 						it = USER_INFO::findUsersByReceiver(++it, this);
