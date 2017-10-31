@@ -265,13 +265,13 @@ bool CHANNEL_INFO::removeMember(const USER_INFO* member)
 	return true;
 }
 
-bool CHANNEL_INFO::isMyChannel(const std::wstring& channel, CHANNEL_INFO** pchinfo)
+bool CHANNEL_INFO::isMyChannel(const std::wstring& channel, std::shared_ptr<CHANNEL_INFO>& ptrChInfo)
 {
 	ConstIteratorOfChannels it_ch = findChannelByName(channel, true);
 
 	bool result = (it_ch != SetOfChannels_.end());
 
-	if(result && pchinfo) *pchinfo = *it_ch;
+	if(result) ptrChInfo = *it_ch;
 
 	return result;
 }

@@ -149,7 +149,7 @@ private:
 	@ppchinfo - returned pointer to an object which describes a channel with name @channel
 	@return true if a message is intended for you and from a user from your network and channel
 	*/
-	bool checkMessage(const wchar_t* to, const wchar_t* from, const wchar_t* channel, USER_INFO** ppUserInfo, CHANNEL_INFO** ppchinfo);
+	bool checkMessage(const wchar_t* to, const wchar_t* from, const wchar_t* channel, std::shared_ptr<USER_INFO>& ptrUserInfo, std::shared_ptr<CHANNEL_INFO>& ptrChInfo);
 
 #ifdef GTEST_PROJECT
 	friend class LineBreaks_Parsing_Test;

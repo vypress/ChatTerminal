@@ -165,7 +165,7 @@ public:
 	mutable volatile int beeps;
 
 	// Amount of unconfirmed info requests to the user
-	mutable volatile int infos;
+	mutable std::atomic<int> infos;
 
 	// A network address of the user
 	networkio::NETADDR_INFO naddr_info;

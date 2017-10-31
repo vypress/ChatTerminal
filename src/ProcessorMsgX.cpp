@@ -299,10 +299,10 @@ bool ProcessorMsgX::verifySignature(const char* pMessage, size_t cMessageLen, co
 }
 #endif // CHATTERM_OS_WINDOWS
 
-bool ProcessorMsgX::checkMessage(const wchar_t* to, const wchar_t* from, const wchar_t* channel, USER_INFO** ppUserInfo, CHANNEL_INFO** ppchinfo)
+bool ProcessorMsgX::checkMessage(const wchar_t* to, const wchar_t* from, const wchar_t* channel, std::shared_ptr<USER_INFO>& ptrUserInfo, std::shared_ptr<CHANNEL_INFO>& ptrChInfo)
 {
 	//To update USER_INFO::last_activity
-	if(from && !USER_INFO::isUserInList(from, ppUserInfo))
+	if(from && !USER_INFO::isUserInList(from, ptrUserInfo))
 	{
 		if(debug_) consoleio::print_line( wszDbgNotInList);
 		return false;
@@ -316,18 +316,15 @@ bool ProcessorMsgX::checkMessage(const wchar_t* to, const wchar_t* from, const w
 
 	if(channel)
 	{
-		CHANNEL_INFO* pchinfo = 0;
-		if(!CHANNEL_INFO::isMyChannel(channel, &pchinfo))
+		if(!CHANNEL_INFO::isMyChannel(channel, ptrChInfo))
 		{
 			if(debug_) consoleio::print_line( wszDbgYouNotInChannel);
 			return false;
 		}
 
-		if(0 == pchinfo) return false;
+		if (!ptrChInfo) return false;
 
-		if(ppchinfo) *ppchinfo = pchinfo;
-
-		if(ppUserInfo && *ppUserInfo && !pchinfo->isMember(*ppUserInfo))
+		if(ptrUserInfo && !ptrChInfo->isMember(ptrUserInfo.get()))
 		{
 			if(debug_) consoleio::print_line( wszDbgSenderNotInChannel);
 			return false;
@@ -2066,19 +2063,19 @@ bool ProcessorMsgX::processSecureChannelMsgQ01(const char* pmsg, size_t msglen, 
 		return true;
 	}
 
-	USER_INFO* pUserInfo = 0;
-	CHANNEL_INFO* pchinfo = 0;
-	if(!checkMessage(NULL, from, channel, &pUserInfo, &pchinfo))
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!checkMessage(NULL, from, channel, ptrUserInfo, ptrChInfo))
 		return true;
 
-	if(!pchinfo->secured) return true;
+	if(!ptrChInfo->secured) return true;
 
 	seek+=result1;
 	len-=result1;
 
-	if(!decryptData((unsigned char*)seek, MessageTextLentgh, pchinfo))
+	if(!decryptData((unsigned char*)seek, MessageTextLentgh, ptrChInfo.get()))
 	{
-		consoleio::print_line(pUserInfo->color, false,  wszUnableDecryptFrom, from, channel);
+		consoleio::print_line(ptrUserInfo->color, false,  wszUnableDecryptFrom, from, channel);
 		return true;
 	}
 
@@ -2098,7 +2095,7 @@ bool ProcessorMsgX::processSecureChannelMsgQ01(const char* pmsg, size_t msglen, 
 	const unsigned char* Signature = (const unsigned char*)seek;
 	size_t cMessageLen = 1+result1 + result2 -fieldsQ01[1].size;
 
-	bool bSignature = verifySignature(pmsg, cMessageLen, Signature, sig_len, pUserInfo->pub_key, pUserInfo->pub_key_size);
+	bool bSignature = verifySignature(pmsg, cMessageLen, Signature, sig_len, ptrUserInfo->pub_key, ptrUserInfo->pub_key_size);
 
 	if(debug_)
 	{
@@ -2112,19 +2109,19 @@ bool ProcessorMsgX::processSecureChannelMsgQ01(const char* pmsg, size_t msglen, 
 
 	const CHANNEL_INFO* pacchinfo = CHANNEL_INFO::getActiveChannel();
 
-	if(pacchinfo && (0 == wcscmp(pacchinfo->name, channel)))
+	if(pacchinfo && pacchinfo->name==channel)
 	{
 		if(fMe)
-			consoleio::print_line(pUserInfo->color, false, wszInChannelMeMsg, theApp.getStrTime(), from, message);
+			consoleio::print_line(ptrUserInfo->color, false, wszInChannelMeMsg, theApp.getStrTime(), from, message);
 		else
-			consoleio::print_line(pUserInfo->color, false, wszInChannelMsg, theApp.getStrTime(), from, message);
+			consoleio::print_line(ptrUserInfo->color, false, wszInChannelMsg, theApp.getStrTime(), from, message);
 	}
 	else
 	{
 		if(fMe)
-			consoleio::print_line(pUserInfo->color, false, wszNotInChannelMeMsg, channel, theApp.getStrTime(), from, message);
+			consoleio::print_line(ptrUserInfo->color, false, wszNotInChannelMeMsg, channel, theApp.getStrTime(), from, message);
 		else
-			consoleio::print_line(pUserInfo->color, false, wszNotInChannelMsg, channel, theApp.getStrTime(), from, message);
+			consoleio::print_line(ptrUserInfo->color, false, wszNotInChannelMsg, channel, theApp.getStrTime(), from, message);
 	}
 
 	return true;
@@ -2314,14 +2311,14 @@ bool ProcessorMsgX::processReplySecureHereQ4(const char* pmsg, size_t msglen)
 		consoleio::print_line(wszDbgChState, channel_state);
 	}
 
-	USER_INFO* pUserInfo = 0;
-	CHANNEL_INFO* pchinfo = 0;
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
 	//It doesn't matter whom this message is for
-	if(!checkMessage(NULL, from, channel, &pUserInfo, &pchinfo))
+	if(!checkMessage(NULL, from, channel, ptrUserInfo, ptrChInfo))
 		return true;
 
-	if(!pchinfo->secured) return true;
-	if(pUserInfo == &theApp.Me_) return true;
+	if(!ptrChInfo->secured) return true;
+	if(USER_INFO::NameComparator(from)(&theApp.Me_)) return true;
 
 	bool bSignature = false;
 	if(result<len)
@@ -2339,10 +2336,10 @@ bool ProcessorMsgX::processReplySecureHereQ4(const char* pmsg, size_t msglen)
 
 			size_t cMessageLen = len+1;//len-- at 2d row
 
-			bSignature = verifySignature(pmsg, cMessageLen, Signature, sig_len, pUserInfo->pub_key, pUserInfo->pub_key_size);
+			bSignature = verifySignature(pmsg, cMessageLen, Signature, sig_len, ptrUserInfo->pub_key, ptrUserInfo->pub_key_size);
 
 			if(bSignature)
-				pchinfo->addMember(pUserInfo);
+				ptrChInfo->addMember(ptrUserInfo.get());
 		}
 	}
 

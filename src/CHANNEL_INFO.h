@@ -54,7 +54,7 @@ public:
 		}
 	};
 
-	using ConstIteratorOfChannels = std::set< CHANNEL_INFO*, Less >::const_iterator;
+	using ConstIteratorOfChannels = std::set< std::shared_ptr<CHANNEL_INFO>, Less >::const_iterator;
 	using ConstIteratorOfChannelUsers = std::vector <const USER_INFO*>::const_iterator;
 	using IteratorOfChannelUsers = std::vector <const USER_INFO*>::iterator;
 
@@ -138,7 +138,7 @@ public:
 	@pchinfo - returned pointer to an object which describes a channel with name @channel
 	@return - true if you are joined to the channel with name @channel
 	*/
-	static bool isMyChannel(const std::wstring& channel, CHANNEL_INFO** pchinfo);
+	static bool isMyChannel(const std::wstring& channel, std::shared_ptr<CHANNEL_INFO>& ptrChInfo);
 
 	/**
 	Creates string of your joined channels; Channels are separated by '#'
@@ -173,7 +173,7 @@ public:
 	static bool getNameWithPrefix(const wchar_t*& channel, bool& fSecured);
 
 	// Set of all channels discovered from a network
-	static std::set< CHANNEL_INFO*, Less > SetOfChannels_;
+	static std::set< std::shared_ptr<CHANNEL_INFO>, Less > SetOfChannels_;
 
 	// Name of a main channel, usually "#Main"
 	static const wchar_t wszMainChannel[6];
