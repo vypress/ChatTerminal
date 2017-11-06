@@ -231,7 +231,7 @@ class Commands
 				when_.tv_sec+=1;
 			}
 			
-#endif // CHATTERM_OS_WINDOWS		
+#endif // CHATTERM_OS_WINDOWS
 			what_=new char[what_len_];
 			memcpy(what_, buf, what_len_);
 			memcpy(&to_, pinfo->naddr_info.psaddr_, sizeof(sockaddr_in6));
@@ -283,17 +283,17 @@ public:
 	@return - 0 if successful, error code otherwise
 	*/
 	int List0();
-	int ChannelMsg2A(const wchar_t* channel, const wchar_t* text, bool fMe);
+	int ChannelMsg2A(const std::wstring& channel, const wchar_t* text, bool fMe);
 	int NickName3(const wchar_t* nick);
-	int Join4(const wchar_t* channel);
-	int Leave5(const wchar_t* channel);
+	int Join4(const std::wstring& channel);
+	int Leave5(const std::wstring& channel);
 	int Leave5(const CHANNEL_INFO* pcchinfo);
-	int NewTopicB(const wchar_t* channel, const wchar_t* topic);
+	int NewTopicB(const std::wstring& channel, const wchar_t* topic);
 	int MassTextMsgE(const wchar_t* text);
 	int MassTextMsgToE(const wchar_t* to, const wchar_t* text);
 	int InfoF(const wchar_t* to);
 	int BeepH(const wchar_t* to);
-	int HereL(const wchar_t* channel);
+	int HereL(const std::wstring& channel);
 	int ChannelsN(const wchar_t* to);
 	int PingPongP(const wchar_t* to, bool fPong);
 	int PingPongP(const USER_INFO* pinfo, bool fPong);
@@ -302,25 +302,25 @@ public:
 
 	int ReplyList1(const USER_INFO* pinfo, int delay=0);
 	int ReplyConfirmMassTextMsg7(const wchar_t* datagramId, const USER_INFO* pinfo, int delay=0);
-	int ReplyTopicC(const wchar_t* channel, const wchar_t* topic, const USER_INFO* pinfo, int delay=0);
+	int ReplyTopicC(const std::wstring& channel, const wchar_t* topic, const USER_INFO* pinfo, int delay=0);
 	int ReplyInfoG(const USER_INFO* pinfo);
 	int ReplyConfirmBeepH(const USER_INFO* pinfo);
-	int ReplyHereK(const wchar_t* channel, const USER_INFO* pinfo, int delay=0);
+	int ReplyHereK(const std::wstring& channel, const USER_INFO* pinfo, int delay=0);
 	int ReplyChannelsO(const USER_INFO* pinfo);
 
-	int SecureChannelMsgQ01(const wchar_t* channel, const CHANNEL_INFO* pcchinfo, const wchar_t* text, bool fMe);
-	int SecureNewTopicQ3(const wchar_t* channel, const CHANNEL_INFO* pcchinfo, const wchar_t* topic);
+	int SecureChannelMsgQ01(const std::wstring& channel, const CHANNEL_INFO* pcchinfo, const wchar_t* text, bool fMe);
+	int SecureNewTopicQ3(const std::wstring& channel, const CHANNEL_INFO* pcchinfo, const wchar_t* topic);
 
-	int SecureJoinQ5(const wchar_t* channel, const wchar_t* passwd);
-	int SecureLeaveQ7(const wchar_t* channel);
+	int SecureJoinQ5(const std::wstring& channel, const wchar_t* passwd);
+	int SecureLeaveQ7(const std::wstring& channel);
 	int SecureLeaveQ7(const CHANNEL_INFO* pcchinfo);
-	int SecureHereQ8(const wchar_t* channel);
+	int SecureHereQ8(const std::wstring& channel);
 
-	int ReplySecureHereQ4(const wchar_t* channel, const USER_INFO* pinfo, int delay=0);
+	int ReplySecureHereQ4(const std::wstring& channel, const USER_INFO* pinfo, int delay=0);
 
-	int ReplySecureTopicQ2(const wchar_t* channel, const CHANNEL_INFO* pcchinfo, const wchar_t* topic, const USER_INFO* pinfo);
+	int ReplySecureTopicQ2(const std::wstring& channel, const CHANNEL_INFO* pcchinfo, const wchar_t* topic, const USER_INFO* pinfo);
 
-	int ReplySecureJoinQ6(const wchar_t* channel, char result, const USER_INFO* pinfo, int delay=0);
+	int ReplySecureJoinQ6(const std::wstring& channel, char result, const USER_INFO* pinfo, int delay=0);
 
 	/**
 	Checks queue of delayed messages and send that are on time

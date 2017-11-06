@@ -37,15 +37,6 @@ public:
 	void operator()(T* p) { delete p; }
 };
 
-class delete_user_unfos
-{
-public:
-	void operator()(USER_INFO* p)
-	{
-		if(p && p!=&theApp.Me_) delete p;
-	}
-};
-
 //Control access to CHANNEL_INFO::SetOfChannels_ and USER_INFO::SetOfUsers_
 #ifdef CHATTERM_OS_WINDOWS
 CRITICAL_SECTION ContainersMonitor::cs_ = {0};
@@ -476,13 +467,14 @@ int ChatTerminalApp::getPublicKey(unsigned char*& pPubBuffer, unsigned short& cP
 
 void ChatTerminalApp::initMe()
 {
-	if(0 != getPublicKey(theApp.Me_.pub_key, theApp.Me_.pub_key_size))
+	theApp.MyPersonalInfo_.initialize();
+
+	//std::unique_ptr<USER_INFO> me = std::make_unique<USER_INFO>();
+
+	if(0 != getPublicKey(Me_.pub_key, Me_.pub_key_size))
 	{
 		consoleio::print_line(wszErrKeyPair);
 	}
-
-	theApp.Me_.pinfo = new PERSONAL_INFO;
-	theApp.Me_.pinfo->initialize();
 
 	//loading personal settings from a configuration xml file
 	if(0 == wszConfUserXmlFile_)
@@ -496,7 +488,7 @@ void ChatTerminalApp::initMe()
 			wcscat_s(wszUserDataPath, buflen, wszDefConfUserXmlFile_);
 
 			if(testFileExistence(wszUserDataPath, false))
-				theApp.Me_.loadFromXml(wszUserDataPath);
+				Me_.loadFromXml(wszUserDataPath);
 		}
 		else
 #else
@@ -512,7 +504,7 @@ void ChatTerminalApp::initMe()
 			wcscpy(pszUserDataPath+home_len-1,  wszDefConfUserXmlFile_);
 
 			if(testFileExistence(pszUserDataPath, false))
-				theApp.Me_.loadFromXml(pszUserDataPath);
+				me->loadFromXml(pszUserDataPath);
 			delete[] pszUserDataPath;
 			delete[] pwszHomeFolder;
 		}
@@ -520,7 +512,7 @@ void ChatTerminalApp::initMe()
 #endif // CHATTERM_OS_WINDOWS
 		{
 			if(testFileExistence(wszDefConfUserXmlFile_+1, false))
-				theApp.Me_.loadFromXml(wszDefConfUserXmlFile_+1);//to skip first slash
+				Me_.loadFromXml(wszDefConfUserXmlFile_+1);//to skip first slash
 		}
 	}
 	else
@@ -531,9 +523,9 @@ void ChatTerminalApp::initMe()
 		//DWORD WINAPI ExpandEnvironmentStrings(LPCTSTR lpSrc, LPTSTR lpDst, DWORD nSize);
 		//BOOL PathUnExpandEnvStrings(LPCTSTR pszPath, LPTSTR pszBuf, UINT cchBuf);
 		if(ExpandEnvironmentStrings(wszConfUserXmlFile_, wszPathBuf, buflen))
-			theApp.Me_.loadFromXml(wszPathBuf);
+			Me_.loadFromXml(wszPathBuf);
 		else
-			theApp.Me_.loadFromXml(wszConfUserXmlFile_);
+			Me_.loadFromXml(wszConfUserXmlFile_);
 #else
 		wchar_t* pwszConfUserXmlFile = 0;
 		NixHlpr.assignWcharSz(&pwszConfUserXmlFile, wszConfUserXmlFile_);
@@ -544,21 +536,23 @@ void ChatTerminalApp::initMe()
 
 #ifdef CHATTERM_OS_WINDOWS
 	RPC_STATUS status = RPC_S_OK;
-	if(UuidIsNil(&theApp.Me_.uuid, &status) || ( RPC_S_OK != status))
-		UuidCreate(&theApp.Me_.uuid);
+	if(UuidIsNil(&Me_.uuid, &status) || ( RPC_S_OK != status))
+		UuidCreate(&Me_.uuid);
 #else
-	if(uuid_is_null(theApp.Me_.uuid))
-		uuid_generate(theApp.Me_.uuid);
+	if(uuid_is_null(me->uuid))
+		uuid_generate(me->uuid);
 #endif // CHATTERM_OS_WINDOWS
-	if(USER_INFO::NullNick_ == theApp.Me_.getNick())
+	if(USER_INFO::NullNick_ == Me_.getNick())
 	{
-		if(theApp.Me_.pinfo->user_name.length()>0)
-			theApp.Me_.setNick(theApp.Me_.pinfo->user_name.c_str(),  theApp.Me_.pinfo->user_name.length());
+		if(theApp.MyPersonalInfo_.user_name.length()>0)
+			Me_.setNick(theApp.MyPersonalInfo_.user_name.c_str(), theApp.MyPersonalInfo_.user_name.length());
 		else
-			theApp.Me_.setNick(wszDefaultNick, _ARRAYSIZE(wszDefaultNick)-1);
+			Me_.setNick(wszDefaultNick, _ARRAYSIZE(wszDefaultNick)-1);
 	}
 
-	USER_INFO::SetOfUsers_.insert(&theApp.Me_);
+	//std::pair<USER_INFO::ConstIteratorOfUsers, bool> res = USER_INFO::SetOfUsers_.insert(me);
+
+	//theApp.Me_ = **res.first;
 }
 
 int ChatTerminalApp::sendChatLine(const wchar_t* line, size_t line_len)
@@ -579,9 +573,9 @@ int ChatTerminalApp::sendChatLine(const wchar_t* line, size_t line_len)
 		if(pacchinfo)
 		{
 			if(pacchinfo->secured)
-				result = Commands_.SecureChannelMsgQ01(pacchinfo->name, pacchinfo, line, false);
+				result = Commands_.SecureChannelMsgQ01(pacchinfo->name.c_str(), pacchinfo, line, false);
 			else
-				result = Commands_.ChannelMsg2A(pacchinfo->name, line, false);
+				result = Commands_.ChannelMsg2A(pacchinfo->name.c_str(), line, false);
 		}
 		else
 			consoleio::print_line(wszYouNotJoinedToChannels);
@@ -881,22 +875,20 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 			consoleio::print_line(theApp.Me_.color, false,  wszUuid, wszMyUuid);
 			delete[] wszMyUuid;
 #endif // CHATTERM_OS_WINDOWS
-			if(theApp.Me_.pinfo)
-			{
-				consoleio::print_line(theApp.Me_.color, false, wszFullName, theApp.Me_.pinfo->full_name.c_str());
-				consoleio::print_line(theApp.Me_.color, false, wszUserName, theApp.Me_.pinfo->user_name.c_str());
-				consoleio::print_line(theApp.Me_.color, false, wszComputerName, theApp.Me_.pinfo->computer_name.c_str());
-				consoleio::print_line(theApp.Me_.color, false, wszDomainName, theApp.Me_.pinfo->domain_name.c_str());
-				consoleio::print_line(theApp.Me_.color, false, wszOS, theApp.Me_.pinfo->os.c_str());
-				consoleio::print_line(theApp.Me_.color, false, wszChatSoftware, theApp.Me_.pinfo->chat_software.c_str());
-				consoleio::print_line(theApp.Me_.color, false, wszJob, theApp.Me_.pinfo->job.c_str());
-				consoleio::print_line(theApp.Me_.color, false, wszDepartment, theApp.Me_.pinfo->department.c_str());
-				consoleio::print_line(theApp.Me_.color, false, wszWorkPhone, theApp.Me_.pinfo->phone_work.c_str());
-				consoleio::print_line(theApp.Me_.color, false, wszMobilePhone, theApp.Me_.pinfo->phone_mob.c_str());
-				consoleio::print_line(theApp.Me_.color, false, wszWebAddr, theApp.Me_.pinfo->www.c_str());
-				consoleio::print_line(theApp.Me_.color, false, wszEmailAddr, theApp.Me_.pinfo->email.c_str());
-				consoleio::print_line(theApp.Me_.color, false, wszPostAddr, theApp.Me_.pinfo->address.c_str());
-			}
+
+			consoleio::print_line(theApp.Me_.color, false, wszFullName, theApp.MyPersonalInfo_.full_name.c_str());
+			consoleio::print_line(theApp.Me_.color, false, wszUserName, theApp.MyPersonalInfo_.user_name.c_str());
+			consoleio::print_line(theApp.Me_.color, false, wszComputerName, theApp.MyPersonalInfo_.computer_name.c_str());
+			consoleio::print_line(theApp.Me_.color, false, wszDomainName, theApp.MyPersonalInfo_.domain_name.c_str());
+			consoleio::print_line(theApp.Me_.color, false, wszOS, theApp.MyPersonalInfo_.os.c_str());
+			consoleio::print_line(theApp.Me_.color, false, wszChatSoftware, theApp.MyPersonalInfo_.chat_software.c_str());
+			consoleio::print_line(theApp.Me_.color, false, wszJob, theApp.MyPersonalInfo_.job.c_str());
+			consoleio::print_line(theApp.Me_.color, false, wszDepartment, theApp.MyPersonalInfo_.department.c_str());
+			consoleio::print_line(theApp.Me_.color, false, wszWorkPhone, theApp.MyPersonalInfo_.phone_work.c_str());
+			consoleio::print_line(theApp.Me_.color, false, wszMobilePhone, theApp.MyPersonalInfo_.phone_mob.c_str());
+			consoleio::print_line(theApp.Me_.color, false, wszWebAddr, theApp.MyPersonalInfo_.www.c_str());
+			consoleio::print_line(theApp.Me_.color, false, wszEmailAddr, theApp.MyPersonalInfo_.email.c_str());
+			consoleio::print_line(theApp.Me_.color, false, wszPostAddr, theApp.MyPersonalInfo_.address.c_str());
 		}
 		return 0;
 
@@ -922,7 +914,7 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 			while(it_ch != CHANNEL_INFO::SetOfChannels_.end())
 			{
 				if(*it_ch)
-					consoleio::print_line((*it_ch)->name);
+					consoleio::print_line((*it_ch)->name.c_str());
 
 				++it_ch;
 			}
@@ -1047,20 +1039,17 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 
 	case JOIN:
 		{
-			const wchar_t* channel = CHANNEL_INFO::wszMainChannel;
-
-			wchar_t* buf = 0;
+			std::wstring&& channel=std::wstring();
 
 			if(params_len && params && *params)
 			{
-				buf = CHANNEL_INFO::createNameWithPrefix(params, CHANNEL_INFO::NOT_SECURED);
+				std::wstring wstrbuf(CHANNEL_INFO::createNameWithPrefix(params, CHANNEL_INFO::NOT_SECURED));
 
-				channel = buf ? buf : params;
+				channel = wstrbuf.length()>0 ? std::move(wstrbuf) : params;
 			}
+			else channel = CHANNEL_INFO::wszMainChannel;
 
 			result = Commands_.Join4(channel);
-
-			delete[] buf;
 		}
 		break;
 
@@ -1130,7 +1119,7 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 			while(it_ch != CHANNEL_INFO::SetOfChannels_.end())
 			{
 				if(*it_ch && (*it_ch)->joined)
-					consoleio::print_line((*it_ch)->name);
+					consoleio::print_line((*it_ch)->name.c_str());
 
 				++it_ch;
 			}
@@ -1143,27 +1132,28 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 
 	case SJOIN:
 		{
-			const wchar_t* channel = 0;
+			std::wstring&& channel = std::wstring();
 			wchar_t* passwd = 0;
-			wchar_t* buf = 0;
+			std::unique_ptr<wchar_t[]> buf(nullptr);
 
 			if(params_len && params && *params)
 			{
-				size_t passwd_len = getSecondParam(params, channel, passwd);
+				const wchar_t* channel_param = nullptr;
+				size_t passwd_len = getSecondParam(params, channel_param, passwd);
 				if(passwd_len<1)
 				{
 					consoleio::print_line(wszNoPassword);
 					break;
 				}
 
-				buf = CHANNEL_INFO::createNameWithPrefix(channel, CHANNEL_INFO::SECURED);
-				if(buf) channel = buf;
+				std::wstring wstrbuf(CHANNEL_INFO::createNameWithPrefix(channel, CHANNEL_INFO::SECURED));
+
+				channel = wstrbuf.length() > 0 ? std::move(wstrbuf) : channel_param;
 			}
 
 			result = Commands_.SecureJoinQ5(channel, passwd);
 
 			delete[] passwd;
-			delete[] buf;
 		}
 		break;
 
@@ -1171,7 +1161,7 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 		{
 			const CHANNEL_INFO* pacchinfo = CHANNEL_INFO::getActiveChannel();
 
-			if(pacchinfo==0 ||pacchinfo->name==0)
+			if(pacchinfo==0 ||pacchinfo->name.length()<1)
 			{
 				consoleio::print_line(wszYouNotJoinedToChannels);
 				break;
@@ -1183,14 +1173,14 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 				break;
 			}
 
-			size_t old_len = pacchinfo->topic ? wcslen(pacchinfo->topic) : 0;
+			size_t old_len = pacchinfo->topic.length();
 
 			size_t buflen = old_len + params_len + wcslen(theApp.Me_.getNick()) + 5;
 
 			wchar_t* pwszTopic = new wchar_t[buflen];
 
-			if( pacchinfo->topic && *pacchinfo->topic)
-				swprintf_s(pwszTopic, buflen, L"%ls %ls (%ls)", pacchinfo->topic, params, theApp.Me_.getNick());
+			if( pacchinfo->topic.length())
+				swprintf_s(pwszTopic, buflen, L"%ls %ls (%ls)", pacchinfo->topic.c_str(), params, theApp.Me_.getNick());
 			else
 				swprintf_s(pwszTopic, buflen, L"%ls (%ls)", params, theApp.Me_.getNick());
 
@@ -1207,7 +1197,7 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 		{
 			const CHANNEL_INFO* pacchinfo = CHANNEL_INFO::getActiveChannel();
 
-			if(pacchinfo==0 || pacchinfo->name==0)
+			if(pacchinfo==0 || pacchinfo->name.length()<1)
 			{
 				consoleio::print_line(wszYouNotJoinedToChannels);
 				break;
@@ -1215,8 +1205,8 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 
 			if(!params_len || !params || !*params)
 			{
-				if( pacchinfo->topic && *pacchinfo->topic)
-					consoleio::print_line(pacchinfo->topic);
+				if( !pacchinfo->topic.empty())
+					consoleio::print_line(pacchinfo->topic.c_str());
 				else
 					consoleio::print_line(wszNoTopic);
 				break;
@@ -1285,7 +1275,7 @@ void ChatTerminalApp::leaveNetwork(void)
 	CHANNEL_INFO::ConstIteratorOfChannels it_ch_main = it_ch_end;
 	while(it_ch != it_ch_end)
 	{
-		if(*it_ch && (*it_ch)->joined && (*it_ch)->name)
+		if(*it_ch && (*it_ch)->joined && (*it_ch)->name.length()>0)
 		{
 			if((it_ch_main == it_ch_end) && comparator(*it_ch))
 			{
@@ -1314,30 +1304,7 @@ void ChatTerminalApp::leaveNetwork(void)
 	std::for_each(CHANNEL_INFO::SetOfChannels_.begin(), CHANNEL_INFO::SetOfChannels_.end(), delete_class_ptr<CHANNEL_INFO>());
 
 	CHANNEL_INFO::setActiveChannel((const wchar_t*)NULL);
-	/*
-	//it_ch = CHANNEL_INFO::SetOfChannels_.begin();
-	//it_ch_end = CHANNEL_INFO::SetOfChannels_.end();
-
-	while(it_ch != it_ch_end)
-	{
-		delete (*it_ch);
-		++it_ch;
-	}
-	*/
-
 	CHANNEL_INFO::SetOfChannels_.clear();
-
-	//free user objects
-	//USER_INFO::ConstIteratorOfUsers it = USER_INFO::SetOfUsers_.begin();
-	//while(it != USER_INFO::SetOfUsers_.end())
-	//{
-	//	if((*it) && (*it) != &theApp.Me_) delete (*it);
-	//	++it;
-	//}
-
-	//free user objects
-	std::for_each(USER_INFO::SetOfUsers_.begin(), USER_INFO::SetOfUsers_.end(), delete_user_unfos());
-
 	USER_INFO::SetOfUsers_.clear();
 }
 
@@ -1482,7 +1449,7 @@ bool ChatTerminalApp::initConfigFromXml(const wchar_t* file_path)
 
 		IXMLDOMNode* pNode = 0;
 		BSTR bstrNodeName = SysAllocString(wszTagUsersList);// /chatterminal/users_list
-		HRESULT hr = pXMLDoc->selectSingleNode(bstrNodeName, &pNode);
+		hr = pXMLDoc->selectSingleNode(bstrNodeName, &pNode);
 		if(S_OK == hr)
 		{
 			IXMLDOMNamedNodeMap* attributeMap = 0;
@@ -1615,10 +1582,10 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 		if(S_OK == hr)
 		{
 			IXMLDOMNodeList *childsIfList = 0;
-			HRESULT hr = pIfItem->get_childNodes(&childsIfList);
+			hr = pIfItem->get_childNodes(&childsIfList);
 			if(S_OK == hr && childsIfList)
 			{
-				long listLength = 0;
+				listLength = 0;
 				hr = childsIfList->get_length(&listLength);
 
 				long ifindex = 0;
@@ -1693,11 +1660,11 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 		if(S_OK == hr)
 		{
 			IXMLDOMNodeList *childsBindingList = 0;
-			HRESULT hr = pBindingItem->get_childNodes(&childsBindingList);
+			hr = pBindingItem->get_childNodes(&childsBindingList);
 
 			if(S_OK == hr && childsBindingList)
 			{
-				long listLength = 0;
+				listLength = 0;
 				hr = childsBindingList->get_length(&listLength);
 
 				long bindex = 0;
@@ -1712,7 +1679,7 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 
 						if(S_OK == hr && childsSendersList)
 						{
-							long listLength = 0;
+							listLength = 0;
 							hr = childsSendersList->get_length(&listLength);
 
 							long sindex = 0;
@@ -1801,7 +1768,7 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 
 						if(S_OK == hr && childsReceiversList)
 						{
-							long listLength = 0;
+							listLength = 0;
 							hr = childsReceiversList->get_length(&listLength);
 
 							long rindex = 0;
@@ -1903,7 +1870,7 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 
 						if(S_OK == hr && childsDestinationsList)
 						{
-							long listLength = 0;
+							listLength = 0;
 							hr = childsDestinationsList->get_length(&listLength);
 
 							long dindex = 0;
@@ -2712,16 +2679,16 @@ void ChatTerminalApp::signalAlarm(int signo)
 	//USER_INFO::ConstIteratorOfUsers end = USER_INFO::SetOfUsers_.end();
 	while(theApp.nDropUsersAfterInterval_ && (it != USER_INFO::SetOfUsers_.end()))
 	{
-		if(0 == *it)
+		if(!*it)
 		{
 			//it = USER_INFO::SetOfUsers_.erase(it);
 			it = USER_INFO::removeUserFromList(it);
 			continue; // to avoid it++
 		}
 
-		USER_INFO* pinfo = *it;
+		const std::shared_ptr<USER_INFO>& pinfo = *it;
 
-		if(pinfo != &theApp.Me_)
+		//if(pinfo.get() != &theApp.Me_)
 		{
 			if(pinfo->flood < 1)
 			{
@@ -2737,7 +2704,7 @@ void ChatTerminalApp::signalAlarm(int signo)
 
 					if(pinfo->pings < maxUserPings_)
 					{
-						theApp.Commands_.PingPongP(pinfo, false);
+						theApp.Commands_.PingPongP(pinfo.get(), false);
 						time(&pinfo->last_ping);
 					}
 					else

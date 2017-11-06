@@ -737,7 +737,7 @@ namespace consoleio
 		int nResult = 0;
 		if(format && *format)
 		{
-			nResult = vwprintf(format, argptr);
+			nResult = vwprintf_s(format, argptr);
 			wcout<<endl;
 		}
 
@@ -748,7 +748,7 @@ namespace consoleio
 
 			//print the invitation
 			const CHANNEL_INFO* pacchinfo = CHANNEL_INFO::getActiveChannel();
-			if(pacchinfo && pacchinfo->name)
+			if(pacchinfo && pacchinfo->name.length()>0)
 			{
 				wcout<<pacchinfo->name;
 			}
@@ -1042,6 +1042,16 @@ namespace consoleio
 		va_end(argptr);
 
 		return nResult;
+	}
+
+	int print_line(const std::wstring& strline)
+	{
+		return vprint_line(byteTextColor, false, strline.c_str(), nullptr);
+	}
+
+	int print_line(const wchar_t* format, const std::wstring& strarg)
+	{
+		return print_line(format, strarg.c_str());
 	}
 
 	int print_line(const wchar_t* format, ...)

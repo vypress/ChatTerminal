@@ -4,7 +4,9 @@ Implementation of the CHANNEL_INFO class
 Copyright (c) 2017 VyPRESS Research, LLC. All rights reserved.
 For conditions of distribution and use, see copyright notice in ChatTerminal.h
 */
-#include <algorithm>
+
+#include <algorithm>    // std::lexicographical_compare
+#include <cctype>       // std::tolower
 
 #include "ChatTerminal.h"
 #include "CHANNEL_INFO.h"
@@ -16,16 +18,22 @@ const wchar_t CHANNEL_INFO::wszMainChannel[6] = L"#Main";
 const CHANNEL_INFO* CHANNEL_INFO::ActiveChannel_ = 0;
 std::set< CHANNEL_INFO*, CHANNEL_INFO::Less > CHANNEL_INFO::SetOfChannels_;
 
-CHANNEL_INFO::ConstIteratorOfChannels CHANNEL_INFO::findChannelByName(const wchar_t* channel, bool fJoined)
+CHANNEL_INFO::ConstIteratorOfChannels CHANNEL_INFO::findChannelByName(const std::wstring& channel, bool fJoined)
 {
 	//It will create a name with a wchChPrefix prefix first
-	wchar_t* buf = createNameWithPrefix(channel, SEC_UNKNOWN);
+	std::wstring with_prefix(createNameWithPrefix(channel, SEC_UNKNOWN));
+	if(!with_prefix.empty()) channel = buf.get();
 
-	if(buf) channel = buf;
+	/*
+	std::function<bool (const CHANNEL_INFO*)> comparator = [&channel](const CHANNEL_INFO* chinfo)
+	{
+		if (nullptr == chinfo) return false;
+		if (chinfo->name.empty()) return false;
+		return 0 == _wcsicmp(channel, chinfo->name.c_str());
+	};
+	*/
 
-	NameComparator comparator(channel);
-
-	ConstIteratorOfChannels it_ch = std::find_if(SetOfChannels_.begin(), SetOfChannels_.end(), comparator);
+	CHANNEL_INFO::ConstIteratorOfChannels it_ch = std::find_if(SetOfChannels_.begin(), SetOfChannels_.end(), NameComparator(channel.c_str()));
 
 	if(fJoined && (it_ch != SetOfChannels_.end()))
 	{
@@ -37,7 +45,7 @@ CHANNEL_INFO::ConstIteratorOfChannels CHANNEL_INFO::findChannelByName(const wcha
 	{
 		if(buf)
 		{
-			*buf = wchSecureChPrefix_;//try to search secure channels
+			buf[0] = wchSecureChPrefix_;//try to search secure channels
 
 			//it_ch = SetOfChannels_.find(channel);
 			it_ch = std::find_if(SetOfChannels_.begin(), SetOfChannels_.end(), comparator);
@@ -49,8 +57,6 @@ CHANNEL_INFO::ConstIteratorOfChannels CHANNEL_INFO::findChannelByName(const wcha
 			}
 		}
 	}
-
-	if(buf) delete[] buf;
 
 	return it_ch;
 }
@@ -95,54 +101,56 @@ bool CHANNEL_INFO::getNameWithPrefix(const wchar_t*& channel, bool& fSecured)
 			return false;
 
 		fSecured = (*it_ch)->secured;
-		channel = (*it_ch)->name;
+		channel = (*it_ch)->name.c_str();
 	}
 	else
 	{
 		if(!ActiveChannel_) return false;
 
 		fSecured = ActiveChannel_->secured;
-		channel = ActiveChannel_->name;
+		channel = ActiveChannel_->name.c_str();
 	}
 
 	return true;
 }
 
-bool CHANNEL_INFO::checkNamePrefix(const wchar_t* channel, SECURED_STATUS fSecureStatus)
+bool CHANNEL_INFO::checkNamePrefix(const std::wstring& channel, SECURED_STATUS fSecureStatus)
 {
-	if(0==channel || 0==*channel) return false;
+	if(channel.length()<1) return false;
 
 	switch(fSecureStatus)
 	{
 	case NOT_SECURED:
-		if(wchChPrefix_ == *channel) return true;
+		if(wchChPrefix_ == channel[0]) return true;
 		break;
 
 	case SECURED:
-		if(wchSecureChPrefix_ == *channel) return true;
+		if(wchSecureChPrefix_ == channel[0]) return true;
 		break;
 
 	default:
-		if(wchChPrefix_ == *channel || wchSecureChPrefix_ == *channel)
+		if(wchChPrefix_ == channel[0] || wchSecureChPrefix_ == channel[0])
 			return true;
 	}
 
 	return false;
 }
 
-wchar_t* CHANNEL_INFO::createNameWithPrefix(const wchar_t* channel, SECURED_STATUS fSecureStatus)
+std::wstring CHANNEL_INFO::createNameWithPrefix(const std::wstring& channel, SECURED_STATUS fSecureStatus)
 {
-	if(0==channel) return 0;
+	std::wstring name_with_prefix;
 
-	if(checkNamePrefix(channel, fSecureStatus)) return 0;
+	if(channel.length()<1) return std::wstring();
 
-	size_t buflen = wcslen(channel)+2;
-	wchar_t* buf = new wchar_t[buflen];
-	*buf = SECURED==fSecureStatus ? wchSecureChPrefix_ : wchChPrefix_;
-	wcscpy_s(buf+1, buflen-1, channel);
-	channel = buf;
+	if(checkNamePrefix(channel, fSecureStatus)) return std::wstring();
 
-	return buf;
+	std::wstring name_with_prefix;
+	name_with_prefix.reserve(channel.length() + 2);
+
+	name_with_prefix.assign(1, SECURED == fSecureStatus ? wchSecureChPrefix_ : wchChPrefix_);
+	name_with_prefix.append(channel);
+
+	return name_with_prefix;
 }
 
 bool CHANNEL_INFO::addMember(const USER_INFO* member)
@@ -161,9 +169,9 @@ bool CHANNEL_INFO::addMember(const USER_INFO* member)
 	return true;
 }
 
-const CHANNEL_INFO* CHANNEL_INFO::addChannelMember(const wchar_t* channel, const USER_INFO* member, SECURED_STATUS fSecureStatus)
+const CHANNEL_INFO* CHANNEL_INFO::addChannelMember(const std::wstring& channel, const USER_INFO* member, SECURED_STATUS fSecureStatus)
 {
-	if(!channel || !*channel) return 0;
+	if(channel.empty()) return nullptr;
 
 	ConstIteratorOfChannels it_ch = findChannelByName(channel, false);
 
@@ -190,20 +198,18 @@ const CHANNEL_INFO* CHANNEL_INFO::addChannelMember(const wchar_t* channel, const
 				pchinfo->secured = false;
 		}
 
-		size_t buflen = wcslen(channel)+1;
-
 		const wchar_t wchPrefix = pchinfo->secured ? wchSecureChPrefix_ : wchChPrefix_;
-
-		if(wchPrefix != *channel)
+		if(wchPrefix != channel[0])
 		{
-			pchinfo->name = new wchar_t[buflen+1];
-			*pchinfo->name = wchPrefix;
-			wcscpy_s(pchinfo->name+1, buflen, channel);
+			size_t buflen = channel.length() + 1;
+			pchinfo->name.reserve(buflen);
+
+			pchinfo->name.assign(1, wchPrefix);
+			pchinfo->name.append(channel);
 		}
 		else
 		{
-			pchinfo->name = new wchar_t[buflen];
-			wcscpy_s(pchinfo->name, buflen, channel);
+			pchinfo->name = channel;
 		}
 
 		SetOfChannels_.insert(pchinfo);
@@ -234,8 +240,7 @@ bool CHANNEL_INFO::removeMember(const USER_INFO* member)
 		if(member == &theApp.Me_)
 		{
 			//clear topic
-			delete[] topic;
-			topic = 0;
+			topic.clear();
 
 			joined = false;
 
@@ -260,13 +265,13 @@ bool CHANNEL_INFO::removeMember(const USER_INFO* member)
 	return true;
 }
 
-bool CHANNEL_INFO::isMyChannel(const wchar_t* channel, CHANNEL_INFO** pchinfo)
+bool CHANNEL_INFO::isMyChannel(const std::wstring& channel, std::shared_ptr<CHANNEL_INFO>& ptrChInfo)
 {
 	ConstIteratorOfChannels it_ch = findChannelByName(channel, true);
 
 	bool result = (it_ch != SetOfChannels_.end());
 
-	if(result && pchinfo) *pchinfo = *it_ch;
+	if(result) ptrChInfo = *it_ch;
 
 	return result;
 }
@@ -276,9 +281,9 @@ bool CHANNEL_INFO::getChannelsList(std::wstring& strChannels)
 	ConstIteratorOfChannels it_ch = SetOfChannels_.begin();
 	while(it_ch != SetOfChannels_.end())
 	{
-		if(*it_ch && (*it_ch)->joined && !(*it_ch)->secured && (*it_ch)->name)
+		if(*it_ch && (*it_ch)->joined && !(*it_ch)->secured && !(*it_ch)->name.empty())
 		{
-			if(*(*it_ch)->name!=L'#')
+			if((*it_ch)->name[0]!=L'#')
 				strChannels+=L'#';
 
 			strChannels+=(*it_ch)->name;

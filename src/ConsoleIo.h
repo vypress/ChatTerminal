@@ -135,6 +135,8 @@ namespace consoleio
 	@format -format control
 	@return - length of the formatted string
 	*/
+
+	int print_line(const wchar_t* format, const std::wstring& strarg);
 	int print_line(const wchar_t* format, ...);
 
 	/**

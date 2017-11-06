@@ -36,6 +36,8 @@ Aleksey Vyatkin, President
 #include <vector>
 #include <deque>
 #include <string>
+#include <memory>
+#include <functional>
 
 #ifndef CHATTERM_OS_WINDOWS
 #include <string.h> //memset, memcpy, memcmp
@@ -113,6 +115,9 @@ public:
 
 	// Globally used object that describes information about you
 	USER_INFO Me_;
+
+	//Pointer to object that contains user personal information
+	PERSONAL_INFO MyPersonalInfo_;
 
 	// Globally used arrays of Sender and Receiver objects, that are used to send and receive messages over the network
 	// We do not use std::auto_ptr<> because pointers to Sender are temporary shared
@@ -381,8 +386,8 @@ public:
 
 private:
 	ContainersMonitor(const ContainersMonitor&);
-	ContainersMonitor& operator=(const ContainersMonitor&);
-	ContainersMonitor* operator&();
+	ContainersMonitor& operator=(const ContainersMonitor&) = delete;
+	ContainersMonitor* operator&() = delete;
 
 	static void Initialize()
 	{

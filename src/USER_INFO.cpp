@@ -39,14 +39,14 @@ const wchar_t* const USER_INFO::colors_[16]={L"black", L"blue",L"green",L"aqua"
 						,L"light red",L"light purple",L"light yellow",L"bright white"};
 
 //It must be accessed in ContainersMonitor CONTAINERS_MONITOR Critical Section
-std::set< USER_INFO*, USER_INFO::Less > USER_INFO::SetOfUsers_;
+std::set< std::shared_ptr<USER_INFO>, USER_INFO::Less > USER_INFO::SetOfUsers_;
 
 USER_INFO::ConstIteratorOfUsers USER_INFO::findUsersByReceiver(ConstIteratorOfUsers it, const networkio::Receiver* pcrcvr)
 {
 	ConstIteratorOfUsers end = SetOfUsers_.end();
 	while(it != end)
 	{
-		if(*it == &theApp.Me_)
+		if(USER_INFO::Comparator(&theApp.Me_)((*it).get()))
 		{
 			if(pcrcvr->isEchoedMessage())
 				return it;
@@ -61,15 +61,14 @@ USER_INFO::ConstIteratorOfUsers USER_INFO::findUsersByReceiver(ConstIteratorOfUs
 	return SetOfUsers_.end();
 }
 
-bool USER_INFO::isUserInList(const wchar_t* name, USER_INFO** ppinfo)
+bool USER_INFO::isUserInList(const wchar_t* name, std::shared_ptr<USER_INFO>& ppinfo)
 {
 	ConstIteratorOfUsers it = std::find_if(SetOfUsers_.begin(), SetOfUsers_.end(), NameComparator(name));
-	//ConstIteratorOfUsers it = SetOfUsers_.find(name);
 
 	bool result = ((it != SetOfUsers_.end()) && (*it));
 	if(result)
 	{
-		if((*it!=&theApp.Me_) && ((*it)->flood>0))
+		if(/*(*it!=&theApp.Me_) &&*/ ((*it)->flood>0))
 		{
 			time_t curt = 0;
 			time(&curt);
@@ -86,7 +85,7 @@ bool USER_INFO::isUserInList(const wchar_t* name, USER_INFO** ppinfo)
 		else
 			time(&(*it)->last_activity);
 
-		if(ppinfo) *ppinfo = (*it);
+		ppinfo = *it;
 	}
 
 	return result;
