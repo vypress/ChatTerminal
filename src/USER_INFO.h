@@ -9,6 +9,7 @@ For conditions of distribution and use, see copyright notice in ChatTerminal.h
 
 #pragma once
 
+#include <atomic>
 #ifndef CHATTERM_OS_WINDOWS
 #include <uuid/uuid.h>
 #endif // CHATTERM_OS_WINDOWS
@@ -65,10 +66,19 @@ public:
 	{
 		bool operator()(USER_INFO* const& _xVal, USER_INFO* const& _yVal) const
 		{
-			if(NULL == _xVal) return true;
-			if(NULL == _xVal->nick_) return true;
-			if(NULL == _yVal) return false;
-			if(NULL == _yVal->nick_) return false;
+			if(nullptr == _xVal) return true;
+			if(nullptr == _xVal->nick_) return true;
+			if(nullptr == _yVal) return false;
+			if(nullptr == _yVal->nick_) return false;
+			return (_wcsicmp(_xVal->nick_, _yVal->nick_)<0);
+		}
+
+		bool operator()(const std::shared_ptr<USER_INFO>& _xVal, const std::shared_ptr<USER_INFO>& _yVal) const
+		{
+			if (nullptr == _xVal) return true;
+			if (nullptr == _xVal->nick_) return true;
+			if (nullptr == _yVal) return false;
+			if (nullptr == _yVal->nick_) return false;
 			return (_wcsicmp(_xVal->nick_, _yVal->nick_)<0);
 		}
 	};
@@ -84,10 +94,9 @@ public:
 
 		bool operator()(const USER_INFO* pi) const
 		{
-			if(NULL == pi) return false;
-			if(NULL == _pm->nick_) return (NULL == pi->nick_);
-			if(NULL == pi->nick_) return false;
-			return 0 == _wcsicmp(_pm->nick_, pi->nick_);
+			if (_pm == pi) return true;
+			if (nullptr == _pm || nullptr == pi) return false;
+			return _pm->cmpNick(pi->getNick());
 		}
 	};
 
@@ -102,9 +111,7 @@ public:
 
 		bool operator()(const USER_INFO* pi) const
 		{
-			if(NULL == pi) return false;
-			if(NULL == pi->nick_) return false;
-			return 0 == _wcsicmp(_pwsz, pi->nick_);
+			return pi->cmpNick(_pwsz);
 		}
 	};
 
@@ -156,16 +163,16 @@ public:
 	mutable double flood;
 
 	// Amount of unconfirmed ping requests to the user
-	mutable volatile int pings;
+	mutable std::atomic_int pings;
 
 	// Time when the latest ping was sent to the user
 	mutable time_t last_ping;
 
 	// Amount of unconfirmed beep requests to the user
-	mutable volatile int beeps;
+	mutable std::atomic_int beeps;
 
 	// Amount of unconfirmed info requests to the user
-	mutable std::atomic<int> infos;
+	mutable std::atomic_int infos;
 
 	// A network address of the user
 	networkio::NETADDR_INFO naddr_info;
@@ -226,6 +233,15 @@ public:
 	@return - true if successful
 	*/
 	bool loadFromXml(const wchar_t* file_path);
+
+	bool cmpNick(const wchar_t* nick) const
+	{
+		if (nick_ == nick) return true;
+
+		if (nullptr == nick || nullptr == nick_) return false;
+
+		return 0 == _wcsicmp(nick_, nick);
+	}
 
 	/**
 	Accessors to the nick_ member

@@ -5,9 +5,6 @@ Copyright (c) 2017 VyPRESS Research, LLC. All rights reserved.
 For conditions of distribution and use, see copyright notice in ChatTerminal.h
 */
 
-#include <algorithm>    // std::lexicographical_compare
-#include <cctype>       // std::tolower
-
 #include "ChatTerminal.h"
 #include "CHANNEL_INFO.h"
 
@@ -70,14 +67,14 @@ const CHANNEL_INFO* CHANNEL_INFO::setActiveChannel(const wchar_t* channel)
 {
 	consoleio::PrintLinesMonitor PRINT_LINES_MONITOR;
 
-	if(0 == channel)
-		ActiveChannel_ = 0;
+	if(nullptr == channel)
+		ActiveChannel_ = nullptr;
 	else
 	{
 		ConstIteratorOfChannels it_ch = findChannelByName(channel, true);
 
 		if(it_ch != SetOfChannels_.end())
-			ActiveChannel_ = *it_ch;
+			ActiveChannel_ = (*it_ch).get();
 	}
 
 	return ActiveChannel_;
@@ -247,9 +244,9 @@ bool CHANNEL_INFO::removeMember(const USER_INFO* member)
 			ConstIteratorOfChannels it_ch_main = std::find_if(SetOfChannels_.begin(), SetOfChannels_.end(), NameComparator(wszMainChannel));
 
 			if(it_ch_main != SetOfChannels_.end() && (*it_ch_main)->joined)
-				setActiveChannel(*it_ch_main);
+				setActiveChannel((*it_ch_main).get());
 			else
-				setActiveChannel((const wchar_t*)NULL);
+				setActiveChannel((const wchar_t*)nullptr);
 		}
 	}
 

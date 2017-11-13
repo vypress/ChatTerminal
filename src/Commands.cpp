@@ -671,7 +671,8 @@ int Commands::SecureHereQ8(const std::wstring& channel)
 		return 0;
 	}
 
-	if(!CHANNEL_INFO::isMyChannel(channel, 0))
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!CHANNEL_INFO::isMyChannel(channel, ptrChInfo))
 	{
 		consoleio::print_line( wszYouNotInChannel, channel.c_str());
 		return 0;
@@ -709,18 +710,18 @@ int Commands::SecureLeaveQ7(const std::wstring& channel)
 		return 0;
 	}
 
-	CHANNEL_INFO* pchinfo = 0;
-	if(!CHANNEL_INFO::isMyChannel(channel, &pchinfo))
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!CHANNEL_INFO::isMyChannel(channel, ptrChInfo))
 	{
 		consoleio::print_line( wszYouNotInChannel, channel);
 		return 0;
 	}
 
-	send_err = SecureLeaveQ7(pchinfo);
+	send_err = SecureLeaveQ7(ptrChInfo.get());
 
 	if(0 == send_err)
 	{
-		pchinfo->removeMember(&theApp.Me_);
+		ptrChInfo->removeMember(&theApp.Me_);
 		consoleio::print_line(NULL);
 	}
 
@@ -1251,14 +1252,14 @@ int Commands::Join4(const std::wstring& channel)
 	{
 		CHANNEL_INFO::addChannelMember(channel, &theApp.Me_, CHANNEL_INFO::NOT_SECURED);
 
-		CHANNEL_INFO* pchinfo = 0;
-		if(!CHANNEL_INFO::isMyChannel(channel, &pchinfo))
+		std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+		if(!CHANNEL_INFO::isMyChannel(channel, ptrChInfo))
 		{
 			consoleio::print_line( wszYouNotInChannel, channel);
 			return 0;
 		}
 
-		CHANNEL_INFO::setActiveChannel(pchinfo);
+		CHANNEL_INFO::setActiveChannel(ptrChInfo.get());
 
 		consoleio::print_line(NULL);
 		send_err = 0;
@@ -1690,7 +1691,8 @@ int Commands::HereL(const std::wstring& channel)
 		return 0;
 	}
 
-	if(!CHANNEL_INFO::isMyChannel(channel, 0))
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!CHANNEL_INFO::isMyChannel(channel, ptrChInfo))
 	{
 		consoleio::print_line( wszYouNotInChannel, channel.c_str());
 		return 0;
@@ -1772,18 +1774,18 @@ int Commands::Leave5(const std::wstring& channel)
 		return 0;
 	}
 
-	CHANNEL_INFO* pchinfo = 0;
-	if(!CHANNEL_INFO::isMyChannel(channel, &pchinfo))
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!CHANNEL_INFO::isMyChannel(channel, ptrChInfo))
 	{
 		consoleio::print_line( wszYouNotInChannel, channel);
 		return 0;
 	}
 
-	send_err = Leave5(pchinfo);
+	send_err = Leave5(ptrChInfo.get());
 
 	if(0 == send_err)
 	{
-		pchinfo->removeMember(&theApp.Me_);
+		ptrChInfo->removeMember(&theApp.Me_);
 		consoleio::print_line(NULL);
 	}
 

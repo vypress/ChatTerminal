@@ -30,7 +30,7 @@ public:
 			//if(NULL == _xVal->name) return true;
 			if(NULL == _yVal) return false;
 			//if(NULL == _yVal->name) return false;
-			std::lexicographical_compare(_xVal->name.begin(), _xVal->name.end(), _yVal->name.begin(), _yVal->name.end(), ignore_case_compare);
+			return std::lexicographical_compare(_xVal->name.begin(), _xVal->name.end(), _yVal->name.begin(), _yVal->name.end(), ignore_case_compare);
 			//return (_wcsicmp(_xVal->name, _yVal->name)<0);
 		}
 	};
@@ -44,13 +44,10 @@ public:
 		{
 		}
 
-		bool operator()(const CHANNEL_INFO* chinfo) const
+		bool operator()(std::shared_ptr<CHANNEL_INFO> const ptrChInfo) const
 		{
-			if(NULL == chinfo) return false;
-			//if(chinfo->name.empty()) return false;
-			if (_str.length() != chinfo->name.length()) return false;
-			return std::equal(_str.begin(), _str.end(), chinfo->name.begin(), ignore_case_compare);
-			//return 0 == _wcsicmp(_pwsz, chinfo->name.c_str());
+			if(!ptrChInfo) return false;
+			return std::lexicographical_compare(_str.begin(), _str.end(), ptrChInfo->name.begin(), ptrChInfo->name.end(), ignore_case_compare);
 		}
 	};
 

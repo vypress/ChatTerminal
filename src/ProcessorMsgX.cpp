@@ -548,22 +548,22 @@ bool ProcessorMsgX::processList0(const char* pmsg, size_t msglen, const networki
 		consoleio::print_line(wszDbgCP, fields0[1].data.ch_);
 	}
 	
-	std::shared_ptr<USER_INFO> pUserInfo;
-	USER_INFO::isUserInList(from, pUserInfo);//It may return false if a user is blocked
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	USER_INFO::isUserInList(from, ptrUserInfo);//It may return false if a user is blocked
 
-	if(pUserInfo)
+	if(ptrUserInfo)
 	{
-		networkio::NETADDR_INFO::assign_from_receiver(pUserInfo->naddr_info, pcrcvr);
+		networkio::NETADDR_INFO::assign_from_receiver(ptrUserInfo->naddr_info, pcrcvr);
 	}
 	else
 	{
 		//Create a new user with provided IP address
-		pUserInfo = std::make_unique<USER_INFO>();
-		pUserInfo->setNick(from);
+		ptrUserInfo = std::make_shared<USER_INFO>();
+		ptrUserInfo->setNick(from);
 
-		networkio::NETADDR_INFO::assign_from_receiver(pUserInfo->naddr_info, pcrcvr);
+		networkio::NETADDR_INFO::assign_from_receiver(ptrUserInfo->naddr_info, pcrcvr);
 
-		USER_INFO::SetOfUsers_.insert(pUserInfo);
+		USER_INFO::SetOfUsers_.insert(ptrUserInfo);
 
 		//avoid destruction
 		fields0[0].data.wsz_ = 0;
@@ -575,7 +575,7 @@ bool ProcessorMsgX::processList0(const char* pmsg, size_t msglen, const networki
 	//so we should to add the user to the Main channel
 	//CHANNEL_INFO::addChannelMember(CHANNEL_INFO::wszMainChannel, pUserInfo, CHANNEL_INFO::NOT_SECURED);
 
-	theApp.Commands_.ReplyList1(pUserInfo.get(), randomSleep());
+	theApp.Commands_.ReplyList1(ptrUserInfo.get(), randomSleep());
 
 	return true;
 }
@@ -709,41 +709,41 @@ bool ProcessorMsgX::processReplyList1(const char* pmsg, size_t msglen, const net
 	//It doesn't matter who is this message for
 
 	//USER_INFO::ConstIteratorOfUsers it = find_user_by_uuid((const UUID*)fields1[7].data.bytes_);
-	std::shared_ptr<USER_INFO> pUserInfo;
-	USER_INFO::isUserInList(from, pUserInfo);//It may return false if a user is blocked
 
-	if(pUserInfo)
+	if (theApp.Me_.cmpNick(from)) return true;
+
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	USER_INFO::isUserInList(from, ptrUserInfo);//It may return false if a user is blocked
+
+	if(ptrUserInfo)
 	{
-		if(pUserInfo == &theApp.Me_)
-			return true;
-
-		pUserInfo->freeFields();
+		ptrUserInfo->freeFields();
 	}
 	else
 	{
-		pUserInfo = std::make_shared<USER_INFO>();
-		USER_INFO::SetOfUsers_.insert(pUserInfo);
+		ptrUserInfo = std::make_shared<USER_INFO>();
+		USER_INFO::SetOfUsers_.insert(ptrUserInfo);
 	}
 
-	pUserInfo->setNick(from);
+	ptrUserInfo->setNick(from);
 
-	pUserInfo->status = status;
-	pUserInfo->wnd_state = wnd_state;
-	pUserInfo->ver = ver;
-	pUserInfo->gender = gender;
+	ptrUserInfo->status = status;
+	ptrUserInfo->wnd_state = wnd_state;
+	ptrUserInfo->ver = ver;
+	ptrUserInfo->gender = gender;
 #ifdef CHATTERM_OS_WINDOWS
-	pUserInfo->uuid = Uuid;
+	ptrUserInfo->uuid = Uuid;
 #else
 	memcpy(&pUserInfo->uuid, &Uuid, sizeof(Uuid));
 #endif // CHATTERM_OS_WINDOWS
-	pUserInfo->license_id = dwLicenseID;
-	pUserInfo->codepage = codepage;
-	pUserInfo->color = dwordToByteColor(dwColor);
-	pUserInfo->pub_key_size = cPubLen;
-	pUserInfo->pub_key = pub_key;
-	pUserInfo->icon = byteIcon;
+	ptrUserInfo->license_id = dwLicenseID;
+	ptrUserInfo->codepage = codepage;
+	ptrUserInfo->color = dwordToByteColor(dwColor);
+	ptrUserInfo->pub_key_size = cPubLen;
+	ptrUserInfo->pub_key = pub_key;
+	ptrUserInfo->icon = byteIcon;
 
-	networkio::NETADDR_INFO::assign_from_receiver(pUserInfo->naddr_info, pcrcvr);
+	networkio::NETADDR_INFO::assign_from_receiver(ptrUserInfo->naddr_info, pcrcvr);
 
 	//avoid destruction from
 	fields1[1].data.wsz_ = 0;
@@ -757,7 +757,7 @@ bool ProcessorMsgX::processReplyList1(const char* pmsg, size_t msglen, const net
 
 	//Vypress Chat can send this reply to Here message instead of ReplyHere
 	//so we should to add the user to the Main channel
-	CHANNEL_INFO::addChannelMember(CHANNEL_INFO::wszMainChannel, pUserInfo, CHANNEL_INFO::NOT_SECURED);
+	CHANNEL_INFO::addChannelMember(CHANNEL_INFO::wszMainChannel, ptrUserInfo.get(), CHANNEL_INFO::NOT_SECURED);
 
 	return true;
 }
@@ -791,12 +791,13 @@ bool ProcessorMsgX::processChannelMsg2A(const char* pmsg, size_t msglen, bool fM
 		consoleio::print_line(wszDbgMessage, message);
 	}
 
-	USER_INFO* pUserInfo = 0;
-	if(!checkMessage(NULL, from, channel, &pUserInfo, 0))
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!checkMessage(NULL, from, channel, ptrUserInfo, ptrChInfo))
 		return true;
 
 	size_t cMessageLen = msglen-fields[3].size;
-	bool bSignature = verifySignature(pmsg, cMessageLen, fields[3].data.bytes_, fields[3].size, pUserInfo->pub_key, pUserInfo->pub_key_size);
+	bool bSignature = verifySignature(pmsg, cMessageLen, fields[3].data.bytes_, fields[3].size, ptrUserInfo->pub_key, ptrUserInfo->pub_key_size);
 
 	if(debug_)
 	{
@@ -810,19 +811,19 @@ bool ProcessorMsgX::processChannelMsg2A(const char* pmsg, size_t msglen, bool fM
 	{
 		const CHANNEL_INFO* pacchinfo = CHANNEL_INFO::getActiveChannel();
 
-		if(pacchinfo && (0 == wcscmp(pacchinfo->name, channel)))
+		if(pacchinfo && (0 == wcscmp(pacchinfo->name.c_str(), channel)))
 		{
 			if(fMe)
-				consoleio::print_line(pUserInfo->color, false, wszInChannelMeMsg, theApp.getStrTime(), from, message);
+				consoleio::print_line(ptrUserInfo->color, false, wszInChannelMeMsg, theApp.getStrTime(), from, message);
 			else
-				consoleio::print_line(pUserInfo->color, false, wszInChannelMsg, theApp.getStrTime(), from, message);
+				consoleio::print_line(ptrUserInfo->color, false, wszInChannelMsg, theApp.getStrTime(), from, message);
 		}
 		else
 		{
 			if(fMe)
-				consoleio::print_line(pUserInfo->color, false, wszNotInChannelMeMsg, channel, theApp.getStrTime(), from, message);
+				consoleio::print_line(ptrUserInfo->color, false, wszNotInChannelMeMsg, channel, theApp.getStrTime(), from, message);
 			else
-				consoleio::print_line(pUserInfo->color, false, wszNotInChannelMsg, channel, theApp.getStrTime(), from, message);
+				consoleio::print_line(ptrUserInfo->color, false, wszNotInChannelMsg, channel, theApp.getStrTime(), from, message);
 		}
 	}
 
@@ -1044,12 +1045,12 @@ bool ProcessorMsgX::processJoin4(const char* pmsg, size_t msglen, const networki
 	//	return true;
 
 	//USER_INFO::ConstIteratorOfUsers it = find_user_by_uuid((const UUID*)fields1[7].data.bytes_);
-	std::shared_ptr<USER_INFO> pUserInfo;
-	USER_INFO::isUserInList(from, pUserInfo);//It may return false if a user is blocked
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	USER_INFO::isUserInList(from, ptrUserInfo);//It may return false if a user is blocked
 
 	const CHANNEL_INFO* pcchinfo = 0;
 
-	if(pUserInfo == &theApp.Me_)
+	if(theApp.Me_.cmpNick(from))
 	{
 		//You have joined to a new channel
 		theApp.Commands_.HereL(channel);
@@ -1058,29 +1059,29 @@ bool ProcessorMsgX::processJoin4(const char* pmsg, size_t msglen, const networki
 	}
 	else
 	{
-		if(!pUserInfo)
+		if(!ptrUserInfo)
 		{
-			pUserInfo = std::make_shared<USER_INFO>();
-			USER_INFO::SetOfUsers_.insert(pUserInfo);
+			ptrUserInfo = std::make_shared<USER_INFO>();
+			USER_INFO::SetOfUsers_.insert(ptrUserInfo);
 		}
 
 		if(ver)
 		{
-			pUserInfo->ver = ver;
+			ptrUserInfo->ver = ver;
 #ifdef CHATTERM_OS_WINDOWS
-			pUserInfo->uuid = Uuid;
+			ptrUserInfo->uuid = Uuid;
 #else
 			memcpy(&pUserInfo->uuid, &Uuid, sizeof(Uuid));
 #endif // CHATTERM_OS_WINDOWS
-			pUserInfo->codepage = codepage;
-			pUserInfo->color = dwordToByteColor(dwColor);
+			ptrUserInfo->codepage = codepage;
+			ptrUserInfo->color = dwordToByteColor(dwColor);
 
 			if((ver >= ver21) && pub_key && cPubLen)
 			{
-				delete[] pUserInfo->pub_key;
+				delete[] ptrUserInfo->pub_key;
 
-				pUserInfo->pub_key = pub_key;
-				pUserInfo->pub_key_size = cPubLen;
+				ptrUserInfo->pub_key = pub_key;
+				ptrUserInfo->pub_key_size = cPubLen;
 
 				//avoid destruction
 				fields3[0].data.bytes_ = 0;
@@ -1089,31 +1090,31 @@ bool ProcessorMsgX::processJoin4(const char* pmsg, size_t msglen, const networki
 			}
 
 			if(ver>=ver20)
-				pUserInfo->icon = byteIcon;
+				ptrUserInfo->icon = byteIcon;
 		}
 
-		pUserInfo->setNick(from);
+		ptrUserInfo->setNick(from);
 
 		//avoid destruction from
 		fields1[0].data.wsz_ = 0;
 		fields1[0].size = 0;
 		fields1[0].type = VOID_FIELD;
 
-		networkio::NETADDR_INFO::assign_from_receiver(pUserInfo->naddr_info, pcrcvr);
+		networkio::NETADDR_INFO::assign_from_receiver(ptrUserInfo->naddr_info, pcrcvr);
 
-		pUserInfo->status = status;
-		pUserInfo->gender = gender;
+		ptrUserInfo->status = status;
+		ptrUserInfo->gender = gender;
 
-		pcchinfo = CHANNEL_INFO::addChannelMember(channel, pUserInfo, CHANNEL_INFO::NOT_SECURED);
+		pcchinfo = CHANNEL_INFO::addChannelMember(channel, ptrUserInfo.get(), CHANNEL_INFO::NOT_SECURED);
 
-		if(pcchinfo && pcchinfo->topic)
+		if(!pcchinfo->topic.empty())
 		{
-			theApp.Commands_.ReplyTopicC(channel, pcchinfo->topic, pUserInfo, randomSleep());
+			theApp.Commands_.ReplyTopicC(channel, pcchinfo->topic.c_str(), ptrUserInfo.get(), randomSleep());
 		}
 	}
 
 	if(pcchinfo && pcchinfo->joined)
-		consoleio::print_line(pUserInfo->color, false, wszJoinedToChannel, theApp.getStrTime(), from, channel);
+		consoleio::print_line(ptrUserInfo->color, false, wszJoinedToChannel, theApp.getStrTime(), from, channel);
 
 	return true;
 }
@@ -1139,16 +1140,21 @@ bool ProcessorMsgX::processLeave5(const char* pmsg, size_t msglen)
 		consoleio::print_line(wszDbgGender, fields[2].data.ch_);
 	}
 
-	std::shared_ptr<USER_INFO> pUserInfo;
-	if(!USER_INFO::isUserInList(from, pUserInfo))
-	{
-		if(debug_) consoleio::print_line(wszDbgNotInList);
-		return true;
-	}
-
 	size_t cMessageLen = result + 1 - fields[3].size;
 
-	bool bSignature = verifySignature(pmsg, cMessageLen, fields[3].data.bytes_, fields[3].size, pUserInfo->pub_key, pUserInfo->pub_key_size);
+	bool bSignature = false;
+	bool isMyMsg = theApp.Me_.cmpNick(from);
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	if (isMyMsg)
+		bSignature = verifySignature(pmsg, cMessageLen, fields[3].data.bytes_, fields[3].size, theApp.Me_.pub_key, theApp.Me_.pub_key_size);
+	else
+		if(USER_INFO::isUserInList(from, ptrUserInfo))
+			bSignature = verifySignature(pmsg, cMessageLen, fields[3].data.bytes_, fields[3].size, ptrUserInfo->pub_key, ptrUserInfo->pub_key_size);
+		else
+		{
+			if (debug_) consoleio::print_line(wszDbgNotInList);
+			return true;
+		}
 
 	if(debug_)
 	{
@@ -1158,27 +1164,23 @@ bool ProcessorMsgX::processLeave5(const char* pmsg, size_t msglen)
 			consoleio::print_line(wszDbgSigNotValid);
 	}
 
-	if(bSignature)
+	if (!bSignature) return true;
+
+	if(isMyMsg)
 	{
-		if(pUserInfo == &theApp.Me_)
-		{
-			consoleio::print_line(pUserInfo->color, false, wszLeftChannel, theApp.getStrTime(), from, channel);
-			return true;
-		}
-
-		CHANNEL_INFO* pchinfo = 0;
-		if(CHANNEL_INFO::isMyChannel(channel, &pchinfo))
-			consoleio::print_line(pUserInfo->color, false, wszLeftChannel, theApp.getStrTime(), from, channel);
-
-		if(pUserInfo != &theApp.Me_)
-		{
-			if(0 == _wcsicmp(channel, CHANNEL_INFO::wszMainChannel))
-				USER_INFO::removeUserFromList(from);
-			else
-				if(pchinfo)
-					pchinfo->removeMember(pUserInfo.get());
-		}
+		consoleio::print_line(theApp.Me_.color, false, wszLeftChannel, theApp.getStrTime(), from, channel);
+		return true;
 	}
+
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(CHANNEL_INFO::isMyChannel(channel, ptrChInfo))
+		consoleio::print_line(ptrUserInfo->color, false, wszLeftChannel, theApp.getStrTime(), from, channel);
+
+	if(0 == _wcsicmp(channel, CHANNEL_INFO::wszMainChannel))
+		USER_INFO::removeUserFromList(from);
+	else
+		if(ptrChInfo)
+			ptrChInfo->removeMember(ptrUserInfo.get());
 
 	return true;
 }
@@ -1212,11 +1214,12 @@ bool ProcessorMsgX::processMassTextMsgConfirm7(const char* pmsg, size_t msglen)
 		consoleio::print_line(wszDbgDatagramID, fields[6].data.wsz_);
 	}
 
-	USER_INFO* pUserInfo = 0;
-	if(!checkMessage(to, from, NULL, &pUserInfo, 0))
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!checkMessage(to, from, NULL, ptrUserInfo, ptrChInfo))
 		return true;
 
-	consoleio::print_line(pUserInfo->color, false, wszReceivedMassMsg, from, getMode(status));
+	consoleio::print_line(ptrUserInfo->color, false, wszReceivedMassMsg, from, getMode(status));
 
 	return true;
 }
@@ -1246,8 +1249,7 @@ bool ProcessorMsgX::processNewTopicB(const char* pmsg, size_t msglen, const netw
 
 		while(it != USER_INFO::SetOfUsers_.end())
 		{
-			const USER_INFO* pUserInfo = *it;
-			consoleio::print_line(wszDbgFromByIp, pUserInfo->getNick());
+			consoleio::print_line(wszDbgFromByIp, (*it)->getNick());
 			it = USER_INFO::findUsersByReceiver(++it, pcrcvr);
 		}
 	}
@@ -1269,13 +1271,13 @@ bool ProcessorMsgX::processNewTopicB(const char* pmsg, size_t msglen, const netw
 		}
 	}
 
-	USER_INFO* pUserInfo = 0;
-	CHANNEL_INFO* pchinfo = 0;
-	if(!checkMessage(NULL, strFrom.c_str(), channel, &pUserInfo, &pchinfo))
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!checkMessage(NULL, strFrom.c_str(), channel, ptrUserInfo, ptrChInfo))
 		return true;
 
 	size_t cMessageLen = msglen-fields[2].size;
-	bool bSignature = verifySignature(pmsg, cMessageLen, fields[2].data.bytes_, fields[2].size, pUserInfo->pub_key, pUserInfo->pub_key_size);
+	bool bSignature = verifySignature(pmsg, cMessageLen, fields[2].data.bytes_, fields[2].size, ptrUserInfo->pub_key, ptrUserInfo->pub_key_size);
 
 	if(debug_)
 	{
@@ -1287,20 +1289,19 @@ bool ProcessorMsgX::processNewTopicB(const char* pmsg, size_t msglen, const netw
 
 	if(!bSignature) return true;
 
-	delete[] pchinfo->topic;
-	pchinfo->topic = topic;
+	ptrChInfo->topic=topic;
 
 	const CHANNEL_INFO* pacchinfo = CHANNEL_INFO::getActiveChannel();
 
-	if(pacchinfo == pchinfo)
+	if(pacchinfo == ptrChInfo.get())
 	{
-		consoleio::print_line(pUserInfo->color, false, wszNewTopic, theApp.getStrTime(), strFrom.c_str());
-		consoleio::print_line(pUserInfo->color, false, wszTopic, topic);
+		consoleio::print_line(ptrUserInfo->color, false, wszNewTopic, theApp.getStrTime(), strFrom.c_str());
+		consoleio::print_line(ptrUserInfo->color, false, wszTopic, topic);
 	}
 	else
 	{
-		consoleio::print_line(pUserInfo->color, false, wszChannelNewTopic, channel, theApp.getStrTime(), strFrom.c_str());
-		consoleio::print_line(pUserInfo->color, false, wszChannelTopic, channel, topic);
+		consoleio::print_line(ptrUserInfo->color, false, wszChannelNewTopic, channel, theApp.getStrTime(), strFrom.c_str());
+		consoleio::print_line(ptrUserInfo->color, false, wszChannelTopic, channel, topic);
 	}
 
 	//avoid destruction
@@ -1340,20 +1341,20 @@ bool ProcessorMsgX::processTopicC(const char* pmsg, size_t msglen)
 	//	return true;
 	//}
 
-	CHANNEL_INFO* pchinfo = 0;
-	if(!CHANNEL_INFO::isMyChannel(channel, &pchinfo))
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!CHANNEL_INFO::isMyChannel(channel, ptrChInfo))
 	{
 		if(debug_) consoleio::print_line( wszDbgYouNotInChannel);
 		return true;
 	}
 
-	if(0 == pchinfo->topic)
+	if(ptrChInfo->topic.empty())
 	{
-		pchinfo->topic = topic;
+		ptrChInfo->topic = topic;
 
 		const CHANNEL_INFO* pacchinfo = CHANNEL_INFO::getActiveChannel();
 
-		if(pacchinfo == pchinfo)
+		if(pacchinfo == ptrChInfo.get())
 			consoleio::print_line(wszTopic, topic);
 		else
 			consoleio::print_line(wszChannelTopic, channel, topic);
@@ -1453,11 +1454,12 @@ bool ProcessorMsgX::processMassTextMsgE(const char* pmsg, size_t msglen, const c
 		consoleio::print_line(wszDbgMessage, message);
 	}
 
-	USER_INFO* pUserInfo = 0;
-	if(!checkMessage(to, from, 0, &pUserInfo, 0))
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!checkMessage(to, from, 0, ptrUserInfo, ptrChInfo))
 		return true;
 
-	consoleio::print_line(pUserInfo->color, false, wszMassMsg, theApp.getStrTime(), from, message);
+	consoleio::print_line(ptrUserInfo->color, false, wszMassMsg, theApp.getStrTime(), from, message);
 
 	wchar_t wszDatagramId[10]={0};
 #ifdef CHATTERM_OS_WINDOWS
@@ -1466,7 +1468,7 @@ bool ProcessorMsgX::processMassTextMsgE(const char* pmsg, size_t msglen, const c
 	NixHlpr.convUtf8ToWchar((unsigned char*)packet_id, 10, wszDatagramId, _ARRAYSIZE(wszDatagramId));
 #endif // CHATTERM_OS_WINDOWS
 
-	theApp.Commands_.ReplyConfirmMassTextMsg7(wszDatagramId, pUserInfo, randomSleep());
+	theApp.Commands_.ReplyConfirmMassTextMsg7(wszDatagramId, ptrUserInfo.get(), randomSleep());
 
 	return true;
 }
@@ -1491,11 +1493,12 @@ bool ProcessorMsgX::processInfoF(const char* pmsg, size_t msglen)
 		consoleio::print_line(wszDbgTo, to);
 	}
 
-	USER_INFO* pUserInfo = 0;
-	if(!checkMessage(to, from, NULL, &pUserInfo, 0))
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!checkMessage(to, from, NULL, ptrUserInfo, ptrChInfo))
 		return true;
 
-	theApp.Commands_.ReplyInfoG(pUserInfo);
+	theApp.Commands_.ReplyInfoG(ptrUserInfo.get());
 
 	return true;
 }
@@ -1547,27 +1550,28 @@ bool ProcessorMsgX::processReplyInfoG(const char* pmsg, size_t msglen)
 		consoleio::print_line(wszPostAddr, fieldsG[17].data.wsz_);
 	}
 
-	USER_INFO* pUserInfo = 0;
-	if(!checkMessage(to, from, NULL, &pUserInfo, 0))
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!checkMessage(to, from, NULL, ptrUserInfo, ptrChInfo))
 		return true;
 
-	if(0 < pUserInfo->infos--)
+	if(0 < ptrUserInfo->infos--)
 	{
-		consoleio::print_line(pUserInfo->color, false, wszInfoAbout, theApp.getStrTime(), from);
+		consoleio::print_line(ptrUserInfo->color, false, wszInfoAbout, theApp.getStrTime(), from);
 
-		consoleio::print_line(pUserInfo->color, false, wszFullName, fieldsG[10].data.wsz_);
-		consoleio::print_line(pUserInfo->color, false, wszUserName, fieldsG[3].data.wsz_);
-		consoleio::print_line(pUserInfo->color, false, wszComputerName, fieldsG[2].data.wsz_);
-		consoleio::print_line(pUserInfo->color, false, wszDomainName, fieldsG[7].data.wsz_);
-		consoleio::print_line(pUserInfo->color, false, wszOS, fieldsG[8].data.wsz_);
-		consoleio::print_line(pUserInfo->color, false, wszChatSoftware, fieldsG[9].data.wsz_);
-		consoleio::print_line(pUserInfo->color, false, wszJob, fieldsG[11].data.wsz_);
-		consoleio::print_line(pUserInfo->color, false, wszDepartment, fieldsG[12].data.wsz_);
-		consoleio::print_line(pUserInfo->color, false, wszWorkPhone, fieldsG[13].data.wsz_);
-		consoleio::print_line(pUserInfo->color, false, wszMobilePhone, fieldsG[14].data.wsz_);
-		consoleio::print_line(pUserInfo->color, false, wszWebAddr, fieldsG[15].data.wsz_);
-		consoleio::print_line(pUserInfo->color, false, wszEmailAddr, fieldsG[16].data.wsz_);
-		consoleio::print_line(pUserInfo->color, false, wszPostAddr, fieldsG[17].data.wsz_);
+		consoleio::print_line(ptrUserInfo->color, false, wszFullName, fieldsG[10].data.wsz_);
+		consoleio::print_line(ptrUserInfo->color, false, wszUserName, fieldsG[3].data.wsz_);
+		consoleio::print_line(ptrUserInfo->color, false, wszComputerName, fieldsG[2].data.wsz_);
+		consoleio::print_line(ptrUserInfo->color, false, wszDomainName, fieldsG[7].data.wsz_);
+		consoleio::print_line(ptrUserInfo->color, false, wszOS, fieldsG[8].data.wsz_);
+		consoleio::print_line(ptrUserInfo->color, false, wszChatSoftware, fieldsG[9].data.wsz_);
+		consoleio::print_line(ptrUserInfo->color, false, wszJob, fieldsG[11].data.wsz_);
+		consoleio::print_line(ptrUserInfo->color, false, wszDepartment, fieldsG[12].data.wsz_);
+		consoleio::print_line(ptrUserInfo->color, false, wszWorkPhone, fieldsG[13].data.wsz_);
+		consoleio::print_line(ptrUserInfo->color, false, wszMobilePhone, fieldsG[14].data.wsz_);
+		consoleio::print_line(ptrUserInfo->color, false, wszWebAddr, fieldsG[15].data.wsz_);
+		consoleio::print_line(ptrUserInfo->color, false, wszEmailAddr, fieldsG[16].data.wsz_);
+		consoleio::print_line(ptrUserInfo->color, false, wszPostAddr, fieldsG[17].data.wsz_);
 	}
 
 	return true;
@@ -1595,8 +1599,9 @@ bool ProcessorMsgX::processBeepH(const char* pmsg, size_t msglen)
 		consoleio::print_line(wszDbgFrom, from);
 	}
 
-	USER_INFO* pUserInfo = 0;
-	if(!checkMessage(to, from, NULL, &pUserInfo, 0))
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!checkMessage(to, from, NULL, ptrUserInfo, ptrChInfo))
 		return true;
 
 	switch(param)
@@ -1609,12 +1614,12 @@ bool ProcessorMsgX::processBeepH(const char* pmsg, size_t msglen)
 		//std::wcout<<beep;
 		if(OK == beep()) // - curses beep
 #endif //CHATTERM_OS_WINDOWS
-			theApp.Commands_.ReplyConfirmBeepH(pUserInfo);
+			theApp.Commands_.ReplyConfirmBeepH(ptrUserInfo.get());
 		break;
 
 	case '1':
-		if(0 < pUserInfo->beeps--)
-			consoleio::print_line(pUserInfo->color, false, wszBeepConfirmed, theApp.getStrTime(), from);
+		if(0 < ptrUserInfo->beeps--)
+			consoleio::print_line(ptrUserInfo->color, false, wszBeepConfirmed, theApp.getStrTime(), from);
 		break;
 	}
 
@@ -1652,25 +1657,21 @@ bool ProcessorMsgX::processReplyHereK(const char* pmsg, size_t msglen, const net
 	//	return true;
 	//}
 
-	std::shared_ptr<USER_INFO> pUserInfo;
-	USER_INFO::isUserInList(from, pUserInfo);//It may return false if a user is blocked
+	if (theApp.Me_.cmpNick(from)) return true;
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	USER_INFO::isUserInList(from, ptrUserInfo);//It may return false if a user is blocked
 
-	if (pUserInfo)
-	{
-		if (pUserInfo == &theApp.Me_)
-			return true;
-	}
-	else
+	if (!ptrUserInfo)
 	{
 		//Reply to Here message may arrive earlier that List reply at first join to #Main time
 
 		//Create a new user with provided IP address
-		pUserInfo = std::make_shared<USER_INFO>();
-		pUserInfo->setNick(from);
+		ptrUserInfo = std::make_shared<USER_INFO>();
+		ptrUserInfo->setNick(from);
 
-		networkio::NETADDR_INFO::assign_from_receiver(pUserInfo->naddr_info, pcrcvr);
+		networkio::NETADDR_INFO::assign_from_receiver(ptrUserInfo->naddr_info, pcrcvr);
 
-		USER_INFO::SetOfUsers_.insert(pUserInfo);
+		USER_INFO::SetOfUsers_.insert(ptrUserInfo);
 
 		//avoid destruction from
 		fields[2].data.wsz_ = 0;
@@ -1678,7 +1679,7 @@ bool ProcessorMsgX::processReplyHereK(const char* pmsg, size_t msglen, const net
 		fields[2].type = VOID_FIELD;
 	}
 
-	CHANNEL_INFO::addChannelMember(channel, pUserInfo.get(), CHANNEL_INFO::NOT_SECURED);
+	CHANNEL_INFO::addChannelMember(channel, ptrUserInfo.get(), CHANNEL_INFO::NOT_SECURED);
 	return true;
 }
 
@@ -1702,7 +1703,8 @@ bool ProcessorMsgX::processHereL(const char* pmsg, size_t msglen, const networki
 		consoleio::print_line(wszDbgFrom, from);
 	}
 
-	if(!CHANNEL_INFO::isMyChannel(channel, 0))
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!CHANNEL_INFO::isMyChannel(channel, ptrChInfo))
 	{
 		if(debug_) consoleio::print_line( wszDbgYouNotInChannel);
 		return true;
@@ -1710,23 +1712,20 @@ bool ProcessorMsgX::processHereL(const char* pmsg, size_t msglen, const networki
 
 	//is_user_in_channel - is not necessary
 
-	std::shared_ptr<USER_INFO> pUserInfo;
-	USER_INFO::isUserInList(from, pUserInfo);//It may return false if a user is blocked
+	if (theApp.Me_.cmpNick(from)) return true;
 
-	if (pUserInfo)
-	{
-		if (pUserInfo == &theApp.Me_)
-			return true;
-	}
-	else
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	USER_INFO::isUserInList(from, ptrUserInfo);//It may return false if a user is blocked
+
+	if (!ptrUserInfo)
 	{
 		//Create a new user with provided IP address
-		pUserInfo = std::make_shared<USER_INFO>();
-		pUserInfo->setNick(from);
+		ptrUserInfo = std::make_shared<USER_INFO>();
+		ptrUserInfo->setNick(from);
 
-		networkio::NETADDR_INFO::assign_from_receiver(pUserInfo->naddr_info, pcrcvr);
+		networkio::NETADDR_INFO::assign_from_receiver(ptrUserInfo->naddr_info, pcrcvr);
 
-		USER_INFO::SetOfUsers_.insert(pUserInfo);
+		USER_INFO::SetOfUsers_.insert(ptrUserInfo);
 
 		//avoid destruction from
 		fieldsL[0].data.wsz_ = 0;
@@ -1734,7 +1733,7 @@ bool ProcessorMsgX::processHereL(const char* pmsg, size_t msglen, const networki
 		fieldsL[0].type = VOID_FIELD;
 	}
 
-	theApp.Commands_.ReplyHereK(channel, pUserInfo.get(), randomSleep());
+	theApp.Commands_.ReplyHereK(channel, ptrUserInfo.get(), randomSleep());
 
 	return true;
 }
@@ -1836,11 +1835,11 @@ bool ProcessorMsgX::processReplyChannelsO(const char* pmsg, size_t msglen, const
 
 	while(it != USER_INFO::SetOfUsers_.end())
 	{
-		const USER_INFO* pUserInfo = *it;
-		if(debug_) consoleio::print_line(wszDbgFromByIp, pUserInfo->getNick());
+		std::shared_ptr<USER_INFO> const& refPtrUserInfo = *it;
+		if(debug_) consoleio::print_line(wszDbgFromByIp, refPtrUserInfo->getNick());
 
 		if(bPrintChannels)
-			consoleio::print_line(pUserInfo->color, false, wszUserChannels, theApp.getStrTime(), pUserInfo->getNick());
+			consoleio::print_line(refPtrUserInfo->color, false, wszUserChannels, theApp.getStrTime(), refPtrUserInfo->getNick());
 
 		/*
 		It is not correct to determine whether a channel is secured or not
@@ -1868,7 +1867,7 @@ bool ProcessorMsgX::processReplyChannelsO(const char* pmsg, size_t msglen, const
 				//	CHANNEL_INFO::addChannelMember(strChannel.c_str(), pUserInfo, CHANNEL_INFO::SEC_UNKNOWN);
 
 				if(bPrintChannels)
-					consoleio::print_line(pUserInfo->color, false, strChannel.c_str());
+					consoleio::print_line(refPtrUserInfo->color, false, strChannel.c_str());
 			}
 
 			start = seek1;
@@ -1909,25 +1908,26 @@ bool ProcessorMsgX::processPingPongP(const char* pmsg, size_t msglen)
 		consoleio::print_line(wszDbgTime, time);
 	}
 
-	USER_INFO* pUserInfo = 0;
-	if(!checkMessage(to, from, NULL, &pUserInfo, 0))
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!checkMessage(to, from, NULL, ptrUserInfo, ptrChInfo))
 		return true;
 
 	switch(param)
 	{
 	case '0':
-		theApp.Commands_.PingPongP(pUserInfo, true);
+		theApp.Commands_.PingPongP(ptrUserInfo.get(), true);
 		break;
 
 	case '1':
 		{
-			if(0 < pUserInfo->pings)
+			if(0 < ptrUserInfo->pings)
 			{
 				if(debug_)
-					consoleio::print_line(pUserInfo->color, false, wszDbgPingedsuccessfuly, theApp.getStrTime(true), from, time);
+					consoleio::print_line(ptrUserInfo->color, false, wszDbgPingedsuccessfuly, theApp.getStrTime(true), from, time);
 			}
 
-			if(pUserInfo->pings>0) --pUserInfo->pings;
+			if(ptrUserInfo->pings>0) --ptrUserInfo->pings;
 		}
 		break;
 	}
@@ -1957,12 +1957,12 @@ bool ProcessorMsgX::processPingPongP(const char* pmsg, size_t msglen)
 
 		if(cPubLen>0 && pub_key)
 		{
-			delete[] pUserInfo->pub_key;
-			pUserInfo->pub_key = new unsigned char[cPubLen];
+			delete[] ptrUserInfo->pub_key;
+			ptrUserInfo->pub_key = new unsigned char[cPubLen];
 
-			memcpy(pUserInfo->pub_key, pub_key, cPubLen);
+			memcpy(ptrUserInfo->pub_key, pub_key, cPubLen);
 
-			pUserInfo->pub_key_size = cPubLen;
+			ptrUserInfo->pub_key_size = cPubLen;
 		}
 	}
 
@@ -2024,11 +2024,12 @@ bool ProcessorMsgX::processFloodZ(const char* pmsg, size_t msglen)
 		consoleio::print_line(wszDbgSeconds, seconds);
 	}
 
-	USER_INFO* pUserInfo = 0;
-	if(!checkMessage(to, from, NULL, &pUserInfo, 0))
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!checkMessage(to, from, NULL, ptrUserInfo, ptrChInfo))
 		return true;
 
-	consoleio::print_line(pUserInfo->color, false, wszFloodNotify, theApp.getStrTime(), from, seconds);
+	consoleio::print_line(ptrUserInfo->color, false, wszFloodNotify, theApp.getStrTime(), from, seconds);
 	return true;
 }
 
@@ -2156,8 +2157,8 @@ bool ProcessorMsgX::processSecureTopicMsgQ23(const char* pmsg, size_t msglen, co
 		{
 			while(it != USER_INFO::SetOfUsers_.end())
 			{
-				const USER_INFO* pUserInfo = *it;
-				consoleio::print_line(wszDbgFromByIp, pUserInfo->getNick());
+				std::shared_ptr<USER_INFO> const& refPtrUserInfo = *it;
+				consoleio::print_line(wszDbgFromByIp, refPtrUserInfo->getNick());
 				it = USER_INFO::findUsersByReceiver(++it, pcrcvr);
 			}
 		}
@@ -2169,19 +2170,19 @@ bool ProcessorMsgX::processSecureTopicMsgQ23(const char* pmsg, size_t msglen, co
 		return true;
 	}
 
-	CHANNEL_INFO* pchinfo = 0;
-	if(!CHANNEL_INFO::isMyChannel(channel, &pchinfo))
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!CHANNEL_INFO::isMyChannel(channel, ptrChInfo))
 	{
 		if(debug_) consoleio::print_line( wszDbgYouNotInChannel);
 		return true;
 	}
 
-	if(!pchinfo->secured) return true;
+	if(!ptrChInfo->secured) return true;
 
 	seek+=result1;
 	len-=result1;
 
-	if(!decryptData((unsigned char*)seek, TopicLentgh, pchinfo))
+	if(!decryptData((unsigned char*)seek, TopicLentgh, ptrChInfo.get()))
 	{
 		USER_INFO::ConstIteratorOfUsers it = USER_INFO::findUsersByReceiver(USER_INFO::SetOfUsers_.begin(), pcrcvr);
 		if(it == USER_INFO::SetOfUsers_.end())
@@ -2234,7 +2235,7 @@ bool ProcessorMsgX::processSecureTopicMsgQ23(const char* pmsg, size_t msglen, co
 		return true;
 	}
 
-	if(!pchinfo->isMember(pUserInfo.get()))
+	if(!ptrChInfo->isMember(pUserInfo.get()))
 	{
 		if(debug_) consoleio::print_line( wszDbgSenderNotInChannel);
 		return true;
@@ -2259,21 +2260,21 @@ bool ProcessorMsgX::processSecureTopicMsgQ23(const char* pmsg, size_t msglen, co
 
 	if(!bSignature) return true;
 
-	if(fNewTopic || pchinfo->topic.empty())
+	if(fNewTopic || ptrChInfo->topic.empty())
 	{
-		pchinfo->topic = topic;
+		ptrChInfo->topic = topic;
 
 		const CHANNEL_INFO* pacchinfo = CHANNEL_INFO::getActiveChannel();
 
 		if(fNewTopic)
 		{
-			if(pacchinfo == pchinfo)
+			if(pacchinfo == ptrChInfo.get())
 				consoleio::print_line(pUserInfo->color, false, wszNewTopic, theApp.getStrTime(), strFrom.c_str());
 			else
 				consoleio::print_line(pUserInfo->color, false, wszChannelNewTopic, channel, theApp.getStrTime(), strFrom.c_str());
 		}
 
-		if(pacchinfo == pchinfo)
+		if(pacchinfo == ptrChInfo.get())
 			consoleio::print_line(wszTopic, topic);
 		else
 			consoleio::print_line(wszChannelTopic, channel, topic);
@@ -2394,26 +2395,28 @@ bool ProcessorMsgX::processSecureJoinQ5(const char* pmsg, size_t msglen)
 		delete[] pwszLine;
 	}
 
-	std::shared_ptr<USER_INFO> pUserInfo;
-	if(!USER_INFO::isUserInList(from, pUserInfo))
+	bool isMyMsg = theApp.Me_.cmpNick(from);
+
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	if(!isMyMsg && !USER_INFO::isUserInList(from, ptrUserInfo))
 	{
 		if(debug_) consoleio::print_line( wszDbgNotInList);
 		return false;
 	}
 
-	CHANNEL_INFO* pchinfo = 0;
-	if(!CHANNEL_INFO::isMyChannel(channel, &pchinfo))
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!CHANNEL_INFO::isMyChannel(channel, ptrChInfo))
 	{
 		if(debug_) consoleio::print_line( wszDbgYouNotInChannel);
 		return false;
 	}
 
 	//It doesn't matter whom this message is for
-	//It doesn't is sender is a channel member
+	//It doesn't matter if a sender is a channel member
 	//if(!checkMessage(NULL, from, channel, &pUserInfo, &pchinfo))
 	//	return true;
 
-	if(!pchinfo->secured) return true;
+	if(!ptrChInfo->secured) return true;
 
 	bool bSignature = false;
 
@@ -2431,35 +2434,35 @@ bool ProcessorMsgX::processSecureJoinQ5(const char* pmsg, size_t msglen)
 			const unsigned char* Signature = (const unsigned char*)(seek + len);
 			size_t cMessageLen = len+1;//len-- at 2d row
 
-			bSignature = verifySignature(pmsg, cMessageLen, Signature, sig_len, pUserInfo->pub_key, pUserInfo->pub_key_size);
+			bSignature = verifySignature(pmsg, cMessageLen, Signature, sig_len, ptrUserInfo->pub_key, ptrUserInfo->pub_key_size);
 
 			if(bSignature)
 			{
 				char chResult = 0x00;
-				if(0 == memcmp(hash, pchinfo->passwd_hash, sizeof(pchinfo->passwd_hash))) chResult = 0x01;
+				if(0 == memcmp(hash, ptrChInfo->passwd_hash, sizeof(ptrChInfo->passwd_hash))) chResult = 0x01;
 
-				if(pUserInfo != &theApp.Me_)
+				if(!isMyMsg)
 				{
-					theApp.Commands_.ReplySecureJoinQ6(pchinfo->name, chResult, pUserInfo, randomSleep());
+					theApp.Commands_.ReplySecureJoinQ6(ptrChInfo->name, chResult, ptrUserInfo.get(), randomSleep());
 				}
 
 				if(chResult == 0x01)
 				{
-					consoleio::print_line(pUserInfo->color, false, wszJoinedToChannel, theApp.getStrTime(), from, pchinfo->name);
+					consoleio::print_line(ptrUserInfo->color, false, wszJoinedToChannel, theApp.getStrTime(), from, ptrChInfo->name.c_str());
 
-					if(pUserInfo == &theApp.Me_)
+					if(isMyMsg)
 					{
 						//You have joined to a new channel
-						theApp.Commands_.SecureHereQ8(pchinfo->name);
+						theApp.Commands_.SecureHereQ8(ptrChInfo->name);
 
-						CHANNEL_INFO::setActiveChannel(pchinfo);
+						CHANNEL_INFO::setActiveChannel(ptrChInfo.get());
 					}
 					else
 					{
-						if(pchinfo->addMember(pUserInfo))
+						if(ptrChInfo->addMember(ptrUserInfo.get()))
 						{
-							if(pchinfo->name && *pchinfo->name && pchinfo->topic && *pchinfo->topic)
-								theApp.Commands_.ReplySecureTopicQ2(pchinfo->name, pchinfo, pchinfo->topic, pUserInfo);
+							if(!ptrChInfo->name.empty() && !ptrChInfo->topic.empty())
+								theApp.Commands_.ReplySecureTopicQ2(ptrChInfo->name, ptrChInfo.get(), ptrChInfo->topic.c_str(), ptrUserInfo.get());
 						}
 					}
 				}
@@ -2500,11 +2503,12 @@ bool ProcessorMsgX::processReplySecureJoinQ6(const char* pmsg, size_t msglen, co
 		consoleio::print_line(wszDbgResult, res);
 	}
 
-	CHANNEL_INFO* pchinfo = 0;
-	if(!checkMessage(to, NULL, channel, 0, &pchinfo))
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	if(!checkMessage(to, NULL, channel, ptrUserInfo, ptrChInfo))
 		return true;
 
-	if(!pchinfo->secured) return true;
+	if(!ptrChInfo->secured) return true;
 
 	USER_INFO::ConstIteratorOfUsers it = USER_INFO::findUsersByReceiver(USER_INFO::SetOfUsers_.begin(), pcrcvr);
 	if(it == USER_INFO::SetOfUsers_.end())
@@ -2544,7 +2548,7 @@ bool ProcessorMsgX::processReplySecureJoinQ6(const char* pmsg, size_t msglen, co
 				{
 					if(res == 0x01)
 					{
-						pchinfo->addMember(pUserInfo);
+						ptrChInfo->addMember(pUserInfo);
 						break;
 					}
 					else
@@ -2592,11 +2596,10 @@ bool ProcessorMsgX::processSecureLeaveQ7(const char* pmsg, size_t msglen)
 		consoleio::print_line(wszDbgGender, gender);
 	}
 
-	bool isEchoed = USER_INFO::NameComparator(from)(&theApp.Me_);
+	bool isEchoed = theApp.Me_.cmpNick(from);
 
 	std::shared_ptr<USER_INFO> pUserInfo;
-
-	if(!USER_INFO::isUserInList(from, pUserInfo) && !isEchoed)
+	if(!isEchoed && !USER_INFO::isUserInList(from, pUserInfo) && !isEchoed)
 	{
 		if(debug_) consoleio::print_line(wszDbgNotInList);
 		return true;
@@ -2640,16 +2643,16 @@ bool ProcessorMsgX::processSecureLeaveQ7(const char* pmsg, size_t msglen)
 			return true;
 		}
 
-		CHANNEL_INFO* pchinfo = 0;
-		if(CHANNEL_INFO::isMyChannel(channel, &pchinfo))
+		std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+		if(CHANNEL_INFO::isMyChannel(channel, ptrChInfo))
 			consoleio::print_line(pUserInfo->color, false, wszLeftChannel, theApp.getStrTime(), from, channel);
 
-		if(pchinfo && pchinfo->secured)
+		if(ptrChInfo && ptrChInfo->secured)
 		{
 			if(0 == _wcsicmp(channel, CHANNEL_INFO::wszMainChannel))
 				USER_INFO::removeUserFromList(from);
 			else
-				pchinfo->removeMember(pUserInfo.get());
+				ptrChInfo->removeMember(pUserInfo.get());
 		}
 	}
 
@@ -2676,21 +2679,21 @@ bool ProcessorMsgX::processSecureHereQ8(const char* pmsg, size_t msglen)
 		consoleio::print_line(wszDbgChannel, channel);
 	}
 
-	CHANNEL_INFO* pchinfo = 0;
-	if(!CHANNEL_INFO::isMyChannel(channel, &pchinfo))
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(!CHANNEL_INFO::isMyChannel(channel, ptrChInfo))
 	{
 		if(debug_) consoleio::print_line( wszDbgYouNotInChannel);
 		return true;
 	}
 
-	if(!pchinfo->secured) return true;
+	if(!ptrChInfo->secured) return true;
 
 	//is_user_in_channel - is not necessary
 
-	if (USER_INFO::NameComparator(from)(&theApp.Me_)) return true;
+	if (theApp.Me_.cmpNick(from)) return true;
 
-	std::shared_ptr<USER_INFO> pUserInfo;
-	if(!USER_INFO::isUserInList(from, pUserInfo))
+	std::shared_ptr<USER_INFO> ptrUserInfo;
+	if(!USER_INFO::isUserInList(from, ptrUserInfo))
 	{
 		if(debug_) consoleio::print_line( wszDbgNotInList);
 		return true;
@@ -2713,11 +2716,11 @@ bool ProcessorMsgX::processSecureHereQ8(const char* pmsg, size_t msglen)
 
 			size_t cMessageLen = len+1;//len-- at 2d row
 
-			bSignature = verifySignature(pmsg, cMessageLen, Signature, sig_len, pUserInfo->pub_key, pUserInfo->pub_key_size);
+			bSignature = verifySignature(pmsg, cMessageLen, Signature, sig_len, ptrUserInfo->pub_key, ptrUserInfo->pub_key_size);
 
 			if(bSignature)
 			{
-				theApp.Commands_.ReplySecureHereQ4(channel, pUserInfo, randomSleep());
+				theApp.Commands_.ReplySecureHereQ4(channel, ptrUserInfo.get(), randomSleep());
 			}
 		}
 	}

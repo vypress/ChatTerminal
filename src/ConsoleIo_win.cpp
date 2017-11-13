@@ -15,6 +15,7 @@ For conditions of distribution and use, see copyright notice in ChatTerminal.h
 #include <vector>
 #include <algorithm>
 #include <string>
+#include <memory>
 
 #include "NetworkIo.h"
 #include "USER_INFO.h"
@@ -189,7 +190,7 @@ namespace consoleio
 
 		//print the invitation
 		const CHANNEL_INFO* pacchinfo = CHANNEL_INFO::getActiveChannel();
-		if(pacchinfo && pacchinfo->name)
+		if(pacchinfo && !pacchinfo->name.empty())
 		{
 			wcout<<pacchinfo->name;
 		}
@@ -247,14 +248,14 @@ namespace consoleio
 		}
 
 		//determine and scroll 'b' characters
-		SMALL_RECT srctScrollRect = {dwCursorPosition.X-1, dwCursorPosition.Y, srWindowRight, yStartTyping+lines-1};
-		SMALL_RECT srctClipRect = {dwCursorPosition.X-1, dwCursorPosition.Y, srWindowRight, yStartTyping+lines-1};
+		SMALL_RECT srctScrollRectB = {dwCursorPosition.X-1, dwCursorPosition.Y, srWindowRight, yStartTyping+lines-1};
+		SMALL_RECT srctClipRectB = {dwCursorPosition.X-1, dwCursorPosition.Y, srWindowRight, yStartTyping+lines-1};
 
 		// Scroll up one character.
 		ScrollConsoleScreenBuffer(
 			hStdout,         // screen buffer handle
-			&srctScrollRect, // scrolling rectangle
-			&srctClipRect,   // clipping rectangle
+			&srctScrollRectB, // scrolling rectangle
+			&srctClipRectB,   // clipping rectangle
 			dwCursorPosition,       // top left destination cell
 			&chiFill);       // fill character and color
 		///////////////////////////////////////
@@ -262,14 +263,14 @@ namespace consoleio
 		//determine and scroll 'e' characters
 		if((dwCursorPosition.X>1) && (dwCursorPosition.Y<yStartTyping+lines-1))
 		{
-			SMALL_RECT srctScrollRect = {0, dwCursorPosition.Y+1, dwCursorPosition.X-2, yStartTyping+lines-1};
-			SMALL_RECT srctClipRect = {0, dwCursorPosition.Y+1, dwCursorPosition.X-1, yStartTyping+lines-1};
+			SMALL_RECT srctScrollRectE = {0, dwCursorPosition.Y+1, dwCursorPosition.X-2, yStartTyping+lines-1};
+			SMALL_RECT srctClipRectE = {0, dwCursorPosition.Y+1, dwCursorPosition.X-1, yStartTyping+lines-1};
 			COORD coordDest = {1, dwCursorPosition.Y+1};
 
 			ScrollConsoleScreenBuffer(
 				hStdout,         // screen buffer handle
-				&srctScrollRect, // scrolling rectangle
-				&srctClipRect,   // clipping rectangle
+				&srctScrollRectE, // scrolling rectangle
+				&srctClipRectE,   // clipping rectangle
 				coordDest,       // top left destination cell
 				&chiFill);       // fill character and color
 		}

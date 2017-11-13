@@ -1962,12 +1962,12 @@ namespace networkio
 
 					while(it != USER_INFO::SetOfUsers_.end())
 					{
-						const USER_INFO* pUserInfo = *it;
+						std::shared_ptr<USER_INFO> const& refPtrUserInfo = *it;
 
 						//if it is my packet then flood is impossible
-						if(pUserInfo && (pUserInfo != &theApp.Me_) && (pUserInfo->flood<1))
+						if(refPtrUserInfo && refPtrUserInfo->flood<1)
 						{
-							theApp.Commands_.FloodZ(pUserInfo, nFloodProtectionTimeInterval_);
+							theApp.Commands_.FloodZ(refPtrUserInfo.get(), nFloodProtectionTimeInterval_);
 						}
 
 						it = USER_INFO::findUsersByReceiver(++it, this);

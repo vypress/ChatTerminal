@@ -549,10 +549,6 @@ void ChatTerminalApp::initMe()
 		else
 			Me_.setNick(wszDefaultNick, _ARRAYSIZE(wszDefaultNick)-1);
 	}
-
-	//std::pair<USER_INFO::ConstIteratorOfUsers, bool> res = USER_INFO::SetOfUsers_.insert(me);
-
-	//theApp.Me_ = **res.first;
 }
 
 int ChatTerminalApp::sendChatLine(const wchar_t* line, size_t line_len)
@@ -1285,9 +1281,9 @@ void ChatTerminalApp::leaveNetwork(void)
 				if(it_ch_main != it_ch)//#Main channel should be the latest
 				{
 					if((*it_ch)->secured)
-						Commands_.SecureLeaveQ7(*it_ch);
+						Commands_.SecureLeaveQ7((*it_ch).get());
 					else
-						Commands_.Leave5(*it_ch);
+						Commands_.Leave5((*it_ch).get());
 				}
 		}
 
@@ -1297,13 +1293,10 @@ void ChatTerminalApp::leaveNetwork(void)
 	//#Main channel should be the latest
 	if((it_ch_main != it_ch_end) && (*it_ch_main)->joined)
 	{
-		Commands_.Leave5(*it_ch_main);
+		Commands_.Leave5((*it_ch_main).get());
 	}
 
-	//free channels objects
-	std::for_each(CHANNEL_INFO::SetOfChannels_.begin(), CHANNEL_INFO::SetOfChannels_.end(), delete_class_ptr<CHANNEL_INFO>());
-
-	CHANNEL_INFO::setActiveChannel((const wchar_t*)NULL);
+	CHANNEL_INFO::setActiveChannel((const wchar_t*)nullptr);
 	CHANNEL_INFO::SetOfChannels_.clear();
 	USER_INFO::SetOfUsers_.clear();
 }
@@ -2688,36 +2681,33 @@ void ChatTerminalApp::signalAlarm(int signo)
 
 		const std::shared_ptr<USER_INFO>& pinfo = *it;
 
-		//if(pinfo.get() != &theApp.Me_)
+		if(pinfo->flood < 1)
 		{
-			if(pinfo->flood < 1)
+			double diff = difftime(t, pinfo->last_activity);
+			if(dwNextTimerInterval < diff)
 			{
-				double diff = difftime(t, pinfo->last_activity);
-				if(dwNextTimerInterval < diff)
-				{
 #ifdef _DEBUG
-					if(Commands::debug_)
-						consoleio::print_line(L"Test user %ls, pings - %u", pinfo->getNick(), pinfo->pings);
+				if(Commands::debug_)
+					consoleio::print_line(L"Test user %ls, pings - %u", pinfo->getNick(), pinfo->pings.load());
 #endif
-					if( difftime(t, pinfo->last_ping) > 60 * theApp.nDropUsersAfterInterval_*2)
-						pinfo->pings = 0;//all pings are expired, start again
+				if( difftime(t, pinfo->last_ping) > 60 * theApp.nDropUsersAfterInterval_*2)
+					pinfo->pings = 0;//all pings are expired, start again
 
-					if(pinfo->pings < maxUserPings_)
-					{
-						theApp.Commands_.PingPongP(pinfo.get(), false);
-						time(&pinfo->last_ping);
-					}
-					else
-					{
-						wchar_t* wszFromAddr = networkio::sockaddr_to_string(pinfo->naddr_info.psaddr_, sizeof(sockaddr_in6));
-						consoleio::print_line( pinfo->color, false, wszUserDropped, getStrTime(true), pinfo->getNick(), wszFromAddr);
-						delete[] wszFromAddr;
+				if(pinfo->pings < maxUserPings_)
+				{
+					theApp.Commands_.PingPongP(pinfo.get(), false);
+					time(&pinfo->last_ping);
+				}
+				else
+				{
+					wchar_t* wszFromAddr = networkio::sockaddr_to_string(pinfo->naddr_info.psaddr_, sizeof(sockaddr_in6));
+					consoleio::print_line( pinfo->color, false, wszUserDropped, getStrTime(true), pinfo->getNick(), wszFromAddr);
+					delete[] wszFromAddr;
 
-						//delete *it;
-						//it = USER_INFO::SetOfUsers_.erase(it);
-						it = USER_INFO::removeUserFromList(it);
-						continue; // to avoid it++
-					}
+					//delete *it;
+					//it = USER_INFO::SetOfUsers_.erase(it);
+					it = USER_INFO::removeUserFromList(it);
+					continue; // to avoid it++
 				}
 			}
 		}

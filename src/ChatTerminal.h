@@ -38,6 +38,8 @@ Aleksey Vyatkin, President
 #include <string>
 #include <memory>
 #include <functional>
+#include <algorithm>    // std::lexicographical_compare
+#include <cctype>       // std::tolower
 
 #ifndef CHATTERM_OS_WINDOWS
 #include <string.h> //memset, memcpy, memcmp
