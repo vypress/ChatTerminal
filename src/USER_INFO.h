@@ -94,9 +94,14 @@ public:
 
 		bool operator()(const USER_INFO* pi) const
 		{
-			if (_pm == pi) return true;
-			if (nullptr == _pm || nullptr == pi) return false;
+			if (nullptr == _pm ) return nullptr == pi;
 			return _pm->cmpNick(pi->getNick());
+		}
+
+		bool operator()(const wchar_t* nick) const
+		{
+			if (nullptr == _pm) return nick==nullptr;
+			return _pm->cmpNick(nick);
 		}
 	};
 
@@ -109,9 +114,9 @@ public:
 		{
 		}
 
-		bool operator()(const USER_INFO* pi) const
+		bool operator()(const std::shared_ptr<USER_INFO>& ptr) const
 		{
-			return pi->cmpNick(_pwsz);
+			return ptr->cmpNick(_pwsz);
 		}
 	};
 
@@ -292,7 +297,7 @@ public:
 	          false otherwise. This function returns in ppinfo a pointer to a user object
 	          regardless of blocking of the user
 	*/
-	static bool isUserInList(const wchar_t* name, std::shared_ptr<USER_INFO>& ppinfo);
+	static bool isUserInList(const wchar_t* name, std::shared_ptr<USER_INFO>& refPtrUserInfo);
 
 	/**
 	Removes a user with name from the list of users;

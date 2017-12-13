@@ -37,9 +37,9 @@ Aleksey Vyatkin, President
 #include <deque>
 #include <string>
 #include <memory>
-#include <functional>
-#include <algorithm>    // std::lexicographical_compare
-#include <cctype>       // std::tolower
+#include <functional> // std::function
+#include <algorithm> // std::lexicographical_compare
+#include <cctype> // std::tolower
 
 #ifndef CHATTERM_OS_WINDOWS
 #include <string.h> //memset, memcpy, memcmp
@@ -116,7 +116,7 @@ public:
 	Commands Commands_;
 
 	// Globally used object that describes information about you
-	USER_INFO Me_;
+	std::shared_ptr<USER_INFO> ptrMe_;
 
 	//Pointer to object that contains user personal information
 	PERSONAL_INFO MyPersonalInfo_;
@@ -200,7 +200,7 @@ private:
 #endif // CHATTERM_OS_WINDOWS
 
 	/**
-	Initializes Me_ object
+	Initializes ptrMe_->object
 	*/
 	void initMe();
 
@@ -297,7 +297,7 @@ private:
 	// Path to the application configuration file
 	const wchar_t* wszConfXmlFile_;
 
-	// Path to the configuration file of Me_ object (Your user information);
+	// Path to the configuration file of ptrMe_->object (Your user information);
 	// By default this file is located in the %USERPROFILE%\Application Data\ folder
 	const wchar_t* wszConfUserXmlFile_;
 #else
@@ -328,7 +328,7 @@ private:
 	// Path to the application configuration file
 	const char* wszConfXmlFile_;
 
-	// Path to the configuration file of Me_ object (Your user information);
+	// Path to the configuration file of ptrMe_->object (Your user information);
 	// By default this file is located in the %USERPROFILE%\Application Data\ folder
 	const char* wszConfUserXmlFile_;
 #endif // CHATTERM_OS_WINDOWS

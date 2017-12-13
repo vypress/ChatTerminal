@@ -469,9 +469,9 @@ void ChatTerminalApp::initMe()
 {
 	theApp.MyPersonalInfo_.initialize();
 
-	//std::unique_ptr<USER_INFO> me = std::make_unique<USER_INFO>();
+	ptrMe_= std::make_shared<USER_INFO>();
 
-	if(0 != getPublicKey(Me_.pub_key, Me_.pub_key_size))
+	if(0 != getPublicKey(ptrMe_->pub_key, ptrMe_->pub_key_size))
 	{
 		consoleio::print_line(wszErrKeyPair);
 	}
@@ -488,7 +488,7 @@ void ChatTerminalApp::initMe()
 			wcscat_s(wszUserDataPath, buflen, wszDefConfUserXmlFile_);
 
 			if(testFileExistence(wszUserDataPath, false))
-				Me_.loadFromXml(wszUserDataPath);
+				ptrMe_->loadFromXml(wszUserDataPath);
 		}
 		else
 #else
@@ -512,7 +512,7 @@ void ChatTerminalApp::initMe()
 #endif // CHATTERM_OS_WINDOWS
 		{
 			if(testFileExistence(wszDefConfUserXmlFile_+1, false))
-				Me_.loadFromXml(wszDefConfUserXmlFile_+1);//to skip first slash
+				ptrMe_->loadFromXml(wszDefConfUserXmlFile_+1);//to skip first slash
 		}
 	}
 	else
@@ -523,32 +523,34 @@ void ChatTerminalApp::initMe()
 		//DWORD WINAPI ExpandEnvironmentStrings(LPCTSTR lpSrc, LPTSTR lpDst, DWORD nSize);
 		//BOOL PathUnExpandEnvStrings(LPCTSTR pszPath, LPTSTR pszBuf, UINT cchBuf);
 		if(ExpandEnvironmentStrings(wszConfUserXmlFile_, wszPathBuf, buflen))
-			Me_.loadFromXml(wszPathBuf);
+			ptrMe_->loadFromXml(wszPathBuf);
 		else
-			Me_.loadFromXml(wszConfUserXmlFile_);
+			ptrMe_->loadFromXml(wszConfUserXmlFile_);
 #else
 		wchar_t* pwszConfUserXmlFile = 0;
 		NixHlpr.assignWcharSz(&pwszConfUserXmlFile, wszConfUserXmlFile_);
-		theApp.Me_.loadFromXml(pwszConfUserXmlFile);
+		theApp.ptrMe_->loadFromXml(pwszConfUserXmlFile);
 		delete[] pwszConfUserXmlFile;
 #endif // CHATTERM_OS_WINDOWS
 	}
 
 #ifdef CHATTERM_OS_WINDOWS
 	RPC_STATUS status = RPC_S_OK;
-	if(UuidIsNil(&Me_.uuid, &status) || ( RPC_S_OK != status))
-		UuidCreate(&Me_.uuid);
+	if(UuidIsNil(&ptrMe_->uuid, &status) || ( RPC_S_OK != status))
+		UuidCreate(&ptrMe_->uuid);
 #else
 	if(uuid_is_null(me->uuid))
 		uuid_generate(me->uuid);
 #endif // CHATTERM_OS_WINDOWS
-	if(USER_INFO::NullNick_ == Me_.getNick())
+	if(USER_INFO::NullNick_ == ptrMe_->getNick())
 	{
 		if(theApp.MyPersonalInfo_.user_name.length()>0)
-			Me_.setNick(theApp.MyPersonalInfo_.user_name.c_str(), theApp.MyPersonalInfo_.user_name.length());
+			ptrMe_->setNick(theApp.MyPersonalInfo_.user_name.c_str(), theApp.MyPersonalInfo_.user_name.length());
 		else
-			Me_.setNick(wszDefaultNick, _ARRAYSIZE(wszDefaultNick)-1);
+			ptrMe_->setNick(wszDefaultNick, _ARRAYSIZE(wszDefaultNick)-1);
 	}
+
+	USER_INFO::SetOfUsers_.insert(ptrMe_);
 }
 
 int ChatTerminalApp::sendChatLine(const wchar_t* line, size_t line_len)
@@ -777,7 +779,7 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 				{
 					if(0 == _wcsicmp(USER_INFO::colors_[i], params))
 					{
-						Me_.color = i;
+						ptrMe_->color = i;
 						break;
 					}
 				}
@@ -785,7 +787,7 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 				if(i >= _ARRAYSIZE(USER_INFO::colors_))
 				{
 					if(*params == L'0')
-						Me_.color = 0;
+						ptrMe_->color = 0;
 					else
 						consoleio::print_line(wszIncorrectColor);
 				}
@@ -793,7 +795,7 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 			else
 			{
 				if(num_color<long(_ARRAYSIZE(USER_INFO::colors_)))
-					Me_.color = static_cast<unsigned char>(num_color);
+					ptrMe_->color = static_cast<unsigned char>(num_color);
 				else
 					consoleio::print_line(wszIncorrectColor);
 			}
@@ -824,7 +826,7 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 		return -2;
 
 	case FEMALE:
-		theApp.Me_.gender = '1';
+		theApp.ptrMe_->gender = '1';
 		return 0;
 
 	case HELP:
@@ -832,7 +834,7 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 		return 0;
 
 	case MALE:
-		theApp.Me_.gender = '0';
+		theApp.ptrMe_->gender = '0';
 		return 0;
 
 	case NICK_NEW:
@@ -853,38 +855,38 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 
 		case WHOIM:
 		{
-			consoleio::print_line(theApp.Me_.color, false,  theApp.Me_.getNick());
+			consoleio::print_line(theApp.ptrMe_->color, false,  theApp.ptrMe_->getNick());
 
-			const wchar_t* gender = (theApp.Me_.gender=='1') ? wszWoman : wszMan;
-			consoleio::print_line(theApp.Me_.color, false,  wszGender, gender);
+			const wchar_t* gender = (theApp.ptrMe_->gender=='1') ? wszWoman : wszMan;
+			consoleio::print_line(theApp.ptrMe_->color, false,  wszGender, gender);
 
 #ifdef CHATTERM_OS_WINDOWS
 			RPC_WSTR wszMyUuid = 0;
-			UuidToString(&theApp.Me_.uuid, &wszMyUuid);
-			consoleio::print_line(theApp.Me_.color, false,  wszUuid, wszMyUuid);
+			UuidToString(&theApp.ptrMe_->uuid, &wszMyUuid);
+			consoleio::print_line(theApp.ptrMe_->color, false,  wszUuid, wszMyUuid);
 			RpcStringFree(&wszMyUuid);
 #else
 			char szUuid[40]={0};
-			uuid_unparse(theApp.Me_.uuid, szUuid);
+			uuid_unparse(theApp.ptrMe_->uuid, szUuid);
 			wchar_t* wszMyUuid = 0;
 			NixHlpr.assignWcharSz(&wszMyUuid, szUuid);
-			consoleio::print_line(theApp.Me_.color, false,  wszUuid, wszMyUuid);
+			consoleio::print_line(theApp.ptrMe_->color, false,  wszUuid, wszMyUuid);
 			delete[] wszMyUuid;
 #endif // CHATTERM_OS_WINDOWS
 
-			consoleio::print_line(theApp.Me_.color, false, wszFullName, theApp.MyPersonalInfo_.full_name.c_str());
-			consoleio::print_line(theApp.Me_.color, false, wszUserName, theApp.MyPersonalInfo_.user_name.c_str());
-			consoleio::print_line(theApp.Me_.color, false, wszComputerName, theApp.MyPersonalInfo_.computer_name.c_str());
-			consoleio::print_line(theApp.Me_.color, false, wszDomainName, theApp.MyPersonalInfo_.domain_name.c_str());
-			consoleio::print_line(theApp.Me_.color, false, wszOS, theApp.MyPersonalInfo_.os.c_str());
-			consoleio::print_line(theApp.Me_.color, false, wszChatSoftware, theApp.MyPersonalInfo_.chat_software.c_str());
-			consoleio::print_line(theApp.Me_.color, false, wszJob, theApp.MyPersonalInfo_.job.c_str());
-			consoleio::print_line(theApp.Me_.color, false, wszDepartment, theApp.MyPersonalInfo_.department.c_str());
-			consoleio::print_line(theApp.Me_.color, false, wszWorkPhone, theApp.MyPersonalInfo_.phone_work.c_str());
-			consoleio::print_line(theApp.Me_.color, false, wszMobilePhone, theApp.MyPersonalInfo_.phone_mob.c_str());
-			consoleio::print_line(theApp.Me_.color, false, wszWebAddr, theApp.MyPersonalInfo_.www.c_str());
-			consoleio::print_line(theApp.Me_.color, false, wszEmailAddr, theApp.MyPersonalInfo_.email.c_str());
-			consoleio::print_line(theApp.Me_.color, false, wszPostAddr, theApp.MyPersonalInfo_.address.c_str());
+			consoleio::print_line(theApp.ptrMe_->color, false, wszFullName, theApp.MyPersonalInfo_.full_name.c_str());
+			consoleio::print_line(theApp.ptrMe_->color, false, wszUserName, theApp.MyPersonalInfo_.user_name.c_str());
+			consoleio::print_line(theApp.ptrMe_->color, false, wszComputerName, theApp.MyPersonalInfo_.computer_name.c_str());
+			consoleio::print_line(theApp.ptrMe_->color, false, wszDomainName, theApp.MyPersonalInfo_.domain_name.c_str());
+			consoleio::print_line(theApp.ptrMe_->color, false, wszOS, theApp.MyPersonalInfo_.os.c_str());
+			consoleio::print_line(theApp.ptrMe_->color, false, wszChatSoftware, theApp.MyPersonalInfo_.chat_software.c_str());
+			consoleio::print_line(theApp.ptrMe_->color, false, wszJob, theApp.MyPersonalInfo_.job.c_str());
+			consoleio::print_line(theApp.ptrMe_->color, false, wszDepartment, theApp.MyPersonalInfo_.department.c_str());
+			consoleio::print_line(theApp.ptrMe_->color, false, wszWorkPhone, theApp.MyPersonalInfo_.phone_work.c_str());
+			consoleio::print_line(theApp.ptrMe_->color, false, wszMobilePhone, theApp.MyPersonalInfo_.phone_mob.c_str());
+			consoleio::print_line(theApp.ptrMe_->color, false, wszWebAddr, theApp.MyPersonalInfo_.www.c_str());
+			consoleio::print_line(theApp.ptrMe_->color, false, wszEmailAddr, theApp.MyPersonalInfo_.email.c_str());
+			consoleio::print_line(theApp.ptrMe_->color, false, wszPostAddr, theApp.MyPersonalInfo_.address.c_str());
 		}
 		return 0;
 
@@ -1171,14 +1173,14 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 
 			size_t old_len = pacchinfo->topic.length();
 
-			size_t buflen = old_len + params_len + wcslen(theApp.Me_.getNick()) + 5;
+			size_t buflen = old_len + params_len + wcslen(theApp.ptrMe_->getNick()) + 5;
 
 			wchar_t* pwszTopic = new wchar_t[buflen];
 
 			if( pacchinfo->topic.length())
-				swprintf_s(pwszTopic, buflen, L"%ls %ls (%ls)", pacchinfo->topic.c_str(), params, theApp.Me_.getNick());
+				swprintf_s(pwszTopic, buflen, L"%ls %ls (%ls)", pacchinfo->topic.c_str(), params, theApp.ptrMe_->getNick());
 			else
-				swprintf_s(pwszTopic, buflen, L"%ls (%ls)", params, theApp.Me_.getNick());
+				swprintf_s(pwszTopic, buflen, L"%ls (%ls)", params, theApp.ptrMe_->getNick());
 
 			if(pacchinfo->secured)
 				result = Commands_.SecureNewTopicQ3(pacchinfo->name, pacchinfo, pwszTopic);
@@ -1208,9 +1210,9 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 				break;
 			}
 
-			size_t buflen = params_len + wcslen(theApp.Me_.getNick())+4;
+			size_t buflen = params_len + wcslen(theApp.ptrMe_->getNick())+4;
 			wchar_t* pwszTopic = new wchar_t[buflen];
-			int topic_len = swprintf_s(pwszTopic, buflen, L"%ls (%ls)", params, theApp.Me_.getNick());
+			int topic_len = swprintf_s(pwszTopic, buflen, L"%ls (%ls)", params, theApp.ptrMe_->getNick());
 
 			DBG_UNREFERENCED_LOCAL_VARIABLE(topic_len);
 			_ASSERTE(topic_len);
@@ -2723,7 +2725,7 @@ void ChatTerminalApp::initialize()
 	//assign the first receiver as my
 	if(Receivers_.size())
 	{
-		networkio::NETADDR_INFO::assign_from_receiver(Me_.naddr_info, Receivers_.front());
+		networkio::NETADDR_INFO::assign_from_receiver(ptrMe_->naddr_info, Receivers_.front());
 	}
 
 	//start receivers' threads
@@ -2815,7 +2817,7 @@ int ChatTerminalApp::run()
 
 	initMe();
 
-	consoleio::print_line(wszWelcome, theApp.Me_.getNick());
+	consoleio::print_line(wszWelcome, theApp.ptrMe_->getNick());
 
 	initialize();
 

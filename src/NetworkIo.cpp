@@ -1583,7 +1583,7 @@ namespace networkio
 		{
 			pif_ = pif;
 
-			//get bound port number to from_addr_ for NETADDR_INFO::assign_from_receiver(Me_.naddr_info, Receivers_.front());
+			//get bound port number to from_addr_ for NETADDR_INFO::assign_from_receiver(ptrMe_->naddr_info, Receivers_.front());
 			//in ChatTerminalApp::run()
 #ifdef CHATTERM_OS_WINDOWS
 			int saddr_len = sizeof(from_addr_);
@@ -2012,11 +2012,11 @@ namespace networkio
 		if(k<11) return;
 
 #ifdef _DEBUG
-		bool br = theApp.Me_.naddr_info.preceiver_ == this;
+		bool br = theApp.ptrMe_->naddr_info.preceiver_ == this;
 		bool becho = isEchoedMessage();
 		if(!br && becho)
 #else
-		if((theApp.Me_.naddr_info.preceiver_ != this) && isEchoedMessage())
+		if((theApp.ptrMe_->naddr_info.preceiver_ != this) && isEchoedMessage())
 #endif
 			return;
 

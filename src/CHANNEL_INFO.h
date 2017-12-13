@@ -7,9 +7,6 @@ Copyright (c) 2010 VyPRESS Research, LLC. All rights reserved.
 For conditions of distribution and use, see copyright notice in ChatTerminal.h
 */
 #pragma once
-#include <cctype>
-
-auto ignore_case_compare = [](wchar_t c1, wchar_t c2) {return std::tolower(c1) == std::tolower(c2); };
 
 /**
 A CHANNEL_INFO class describes an object that stores information about a channel
@@ -21,15 +18,15 @@ public:
 	// An enumeration of possible channel types: generic, secured, unknown
 	enum SECURED_STATUS {NOT_SECURED = 0, SECURED, SEC_UNKNOWN};
 
+	static std::function<bool(wchar_t, wchar_t)> const ignore_case_compare;
+
 	// The comparison functor for a set of CHANNEL_INFO
 	struct Less
 	{
-		bool operator()(CHANNEL_INFO* const& _xVal, CHANNEL_INFO* const& _yVal) const
+		bool operator()(std::shared_ptr<CHANNEL_INFO> const& _xVal, std::shared_ptr<CHANNEL_INFO> const& _yVal) const
 		{
-			if(NULL == _xVal) return true;
-			//if(NULL == _xVal->name) return true;
-			if(NULL == _yVal) return false;
-			//if(NULL == _yVal->name) return false;
+			if(!_xVal) return !_yVal;
+			if (!_yVal) return false;
 			return std::lexicographical_compare(_xVal->name.begin(), _xVal->name.end(), _yVal->name.begin(), _yVal->name.end(), ignore_case_compare);
 			//return (_wcsicmp(_xVal->name, _yVal->name)<0);
 		}
@@ -82,9 +79,7 @@ public:
 #endif // CHATTERM_OS_WINDOWS
 
 	CHANNEL_INFO()
-		: name(0),
-		topic(0),
-		joined(false),
+		: joined(false),
 #ifdef CHATTERM_OS_WINDOWS
 		hKey(0),
 #endif // CHATTERM_OS_WINDOWS
@@ -107,7 +102,7 @@ public:
 	@return - true if adding or deleting was successful or if user is joined to a channel, false otherwise
 	*/
 	bool addMember(const USER_INFO* member);
-	bool removeMember(const USER_INFO* member);
+	size_t removeMember(const USER_INFO* member);
 	bool isMember(const USER_INFO* member) const;
 
 	/**
@@ -170,7 +165,7 @@ public:
 	static bool getNameWithPrefix(const wchar_t*& channel, bool& fSecured);
 
 	// Set of all channels discovered from a network
-	static std::set< std::shared_ptr<CHANNEL_INFO>, Less > SetOfChannels_;
+	static std::set< std::shared_ptr<CHANNEL_INFO>, CHANNEL_INFO::Less > SetOfChannels_;
 
 	// Name of a main channel, usually "#Main"
 	static const wchar_t wszMainChannel[6];

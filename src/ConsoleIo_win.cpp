@@ -7,21 +7,30 @@ Copyright (c) 2010 VyPRESS Research, LLC. All rights reserved.
 For conditions of distribution and use, see copyright notice in ChatTerminal.h
 */
 
+#include <iostream>
+#include "ChatTerminal.h"
+
+/*
 #include <time.h>
 
-#include <iostream>
+
 #include <deque>
 #include <set>
 #include <vector>
 #include <algorithm>
 #include <string>
 #include <memory>
+#include <functional> // std::function
+#include <algorithm> // std::lexicographical_compare
+#include <cctype> // std::tolower
 
 #include "NetworkIo.h"
 #include "USER_INFO.h"
 #include "CHANNEL_INFO.h"
 #include "ConsoleIo.h"
+*/
 #include "StrResources.h"
+
 
 #include <WinDef.h>
 #include <Winnt.h>
@@ -1052,7 +1061,7 @@ namespace consoleio
 
 	int print_line(const wchar_t* format, const std::wstring& strarg)
 	{
-		return print_line(format, strarg.c_str());
+		return print_line(format, strarg.c_str(), 0);//добавлен ещё один параметр, что бы вызвать функцию int print_line(const wchar_t* format, ...)
 	}
 
 	int print_line(const wchar_t* format, ...)
