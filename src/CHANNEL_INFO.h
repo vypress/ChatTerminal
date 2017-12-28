@@ -18,7 +18,7 @@ public:
 	// An enumeration of possible channel types: generic, secured, unknown
 	enum SECURED_STATUS {NOT_SECURED = 0, SECURED, SEC_UNKNOWN};
 
-	static std::function<bool(wchar_t, wchar_t)> const ignore_case_compare;
+	//static std::function<bool(wchar_t, wchar_t)> const ignore_case_compare;
 
 	// The comparison functor for a set of CHANNEL_INFO
 	struct Less
@@ -27,7 +27,8 @@ public:
 		{
 			if(!_xVal) return !_yVal;
 			if (!_yVal) return false;
-			return std::lexicographical_compare(_xVal->name.begin(), _xVal->name.end(), _yVal->name.begin(), _yVal->name.end(), ignore_case_compare);
+
+			return std::lexicographical_compare(_xVal->name.begin(), _xVal->name.end(), _yVal->name.begin(), _yVal->name.end(), [](wchar_t c1, wchar_t c2) {return std::tolower(c1) < std::tolower(c2); });
 			//return (_wcsicmp(_xVal->name, _yVal->name)<0);
 		}
 	};
@@ -44,7 +45,7 @@ public:
 		bool operator()(std::shared_ptr<CHANNEL_INFO> const ptrChInfo) const
 		{
 			if(!ptrChInfo) return false;
-			return std::lexicographical_compare(_str.begin(), _str.end(), ptrChInfo->name.begin(), ptrChInfo->name.end(), ignore_case_compare);
+			return std::equal(_str.begin(), _str.end(), ptrChInfo->name.begin(), [](wchar_t c1, wchar_t c2) {return std::tolower(c1) == std::tolower(c2); });
 		}
 	};
 

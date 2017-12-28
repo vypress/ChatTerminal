@@ -11,16 +11,16 @@ const wchar_t CHANNEL_INFO::wchChPrefix_ = L'#';
 const wchar_t CHANNEL_INFO::wchSecureChPrefix_ = L'@';
 
 const wchar_t CHANNEL_INFO::wszMainChannel[6] = L"#Main";
-const CHANNEL_INFO* CHANNEL_INFO::ActiveChannel_ = 0;
+const CHANNEL_INFO* CHANNEL_INFO::ActiveChannel_ = nullptr;
 std::set< std::shared_ptr<CHANNEL_INFO>, CHANNEL_INFO::Less > CHANNEL_INFO::SetOfChannels_;
 
-std::function<bool(wchar_t, wchar_t)> const CHANNEL_INFO::ignore_case_compare = [](wchar_t c1, wchar_t c2) {return std::tolower(c1) == std::tolower(c2); };
+//std::function<bool(wchar_t, wchar_t)> const CHANNEL_INFO::ignore_case_compare = [](wchar_t c1, wchar_t c2) {return std::tolower(c1) < std::tolower(c2); };
 
 CHANNEL_INFO::ConstIteratorOfChannels CHANNEL_INFO::findChannelByName(const std::wstring& channel, bool fJoined)
 {
 	//It will create a name with a wchChPrefix prefix first
 	std::wstring with_prefix(createNameWithPrefix(channel, SEC_UNKNOWN));
-	if(!with_prefix.empty()) with_prefix = channel;
+	if(with_prefix.empty()) with_prefix = channel;
 
 	/*
 	std::function<bool (const CHANNEL_INFO*)> comparator = [&channel](const CHANNEL_INFO* chinfo)
@@ -78,8 +78,10 @@ const CHANNEL_INFO* CHANNEL_INFO::setActiveChannel(const wchar_t* channel)
 
 		if(it_ch != SetOfChannels_.end())
 			ActiveChannel_ = (*it_ch).get();
-	}
+		else ActiveChannel_ = nullptr;
 
+		_ASSERTE(ActiveChannel_ != nullptr);
+	}
 	return ActiveChannel_;
 }
 
@@ -105,7 +107,7 @@ bool CHANNEL_INFO::getNameWithPrefix(const wchar_t*& channel, bool& fSecured)
 	}
 	else
 	{
-		if(!ActiveChannel_) return false;
+		if(nullptr==ActiveChannel_) return false;
 
 		fSecured = ActiveChannel_->secured;
 		channel = ActiveChannel_->name.c_str();

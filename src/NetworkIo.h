@@ -134,7 +134,7 @@ namespace networkio
 	private:
 		SOCKET sock_;
 		unsigned short port_;
-                const Interface* pif_;
+		const Interface* pif_;
 
 	friend class Receiver;
 	};
@@ -181,11 +181,11 @@ namespace networkio
 		};
 
 	public:
-		explicit Receiver(Sender* psender)
+		explicit Receiver(std::shared_ptr<Sender> ptrSender)
 			: sock_(INVALID_SOCKET)
 			,port_(0)
 			,pif_(0)
-			,psender_(psender)
+			,ptrSender_(ptrSender)
 			,fStop_(false)
 #ifdef CHATTERM_OS_WINDOWS
 			,eventRead_(WSACreateEvent())
@@ -204,7 +204,7 @@ namespace networkio
 			if(WSA_INVALID_EVENT!=eventRead_)
 				WSACloseEvent(eventRead_);
 #endif
-			if(INVALID_SOCKET != sock_ && (0==psender_ || sock_ != psender_->sock_))
+			if(INVALID_SOCKET != sock_ && (!ptrSender_ || sock_ != ptrSender_->sock_))
 			{
 				closesocket(sock_);
 				sock_ = INVALID_SOCKET;
@@ -233,7 +233,7 @@ namespace networkio
 		*/
 		const Sender* getSender() const
 		{
-			return psender_;
+			return ptrSender_.get();
 		}
 
 		/**
@@ -277,7 +277,7 @@ namespace networkio
 		sockaddr_in6 from_addr_;
 
 		//Pointer to the sender object which is used to send reply messages to recipients
-		Sender* psender_;
+		std::shared_ptr<Sender> ptrSender_;
 
 		// Flag to stop the receiver thread
 		bool fStop_;

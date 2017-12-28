@@ -38,8 +38,9 @@ Aleksey Vyatkin, President
 #include <string>
 #include <memory>
 #include <functional> // std::function
-#include <algorithm> // std::lexicographical_compare
+#include <algorithm> // std::equal std::lexicographical_compare
 #include <cctype> // std::tolower
+#include <cwctype> //std::iswspace
 
 #ifndef CHATTERM_OS_WINDOWS
 #include <string.h> //memset, memcpy, memcmp
@@ -126,8 +127,10 @@ public:
 	// between several containers (mapIdIf, mapIdSender, mapIdIfSender) in initNetConfigFromXml()
 	// We could to use here a shared pointer or a pointer with reference counting
 	// but there are no such safe pointers in the C++ STL
-	std::vector< networkio::Sender* > Senders_;
-	std::vector< networkio::Receiver* > Receivers_;
+	//std::vector< std::shared_ptr<networkio::Sender> > Senders_;
+	std::vector< std::shared_ptr<networkio::Sender> > Senders_;
+
+	std::vector< std::shared_ptr<networkio::Receiver> > Receivers_;
 
 
 	/**

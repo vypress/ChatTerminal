@@ -1218,7 +1218,7 @@ namespace networkio
 			delete[] wszAddress;
 		}
 
-		prref = new Receiver(psref);
+		prref = new Receiver(std::shared_ptr<networkio::Sender>(psref));
 		port = DEFAULT_PORT;
 		int bind_result = prref->bindToInterface(piref, port, wszMcastAddress);
 		wchar_t* wszIfAddress = piref->getStringAddress(port);
@@ -1485,11 +1485,11 @@ namespace networkio
 		addrinfo* const& pai = pif->pai_;
 		int result = 0;
 
-		if(psender_ && (htons(port) == psender_->port_))
+		if(ptrSender_ && (htons(port) == ptrSender_->port_))
 		{
 			//Using the same socket for receiving and sending is not good idea
 			//I'm not sure that sendto() and recvrfom() are thread safe
-			sock_ = psender_->sock_;
+			sock_ = ptrSender_->sock_;
 
 			/* It is not necessary
 			switch(pai->ai_family)
@@ -1549,7 +1549,7 @@ namespace networkio
 
 			case AF_INET6:
 				{
-					DWORD dwVal = 1;//IPV6_V6ONLY is supported only since Vista, so do not check the result
+					dwVal = 1;//IPV6_V6ONLY is supported only since Vista, so do not check the result
 					int ipv6oly = setsockopt (sock_, IPPROTO_IPV6, IPV6_V6ONLY, (char*)&dwVal, sizeof (dwVal));
 					DBG_UNREFERENCED_LOCAL_VARIABLE(ipv6oly);
 					_ASSERTE(0 == ipv6oly);
@@ -1958,11 +1958,11 @@ namespace networkio
 
 					ContainersMonitor CONTAINERS_MONITOR;
 
-					USER_INFO::ConstIteratorOfUsers it = USER_INFO::findUsersByReceiver(USER_INFO::SetOfUsers_.begin(), this);
+					USER_INFO::ConstIteratorOfUsers it_user = USER_INFO::findUsersByReceiver(USER_INFO::SetOfUsers_.begin(), this);
 
-					while(it != USER_INFO::SetOfUsers_.end())
+					while(it_user != USER_INFO::SetOfUsers_.end())
 					{
-						std::shared_ptr<USER_INFO> const& refPtrUserInfo = *it;
+						std::shared_ptr<USER_INFO> const& refPtrUserInfo = *it_user;
 
 						//if it is my packet then flood is impossible
 						if(refPtrUserInfo && refPtrUserInfo->flood<1)
@@ -1970,7 +1970,7 @@ namespace networkio
 							theApp.Commands_.FloodZ(refPtrUserInfo.get(), nFloodProtectionTimeInterval_);
 						}
 
-						it = USER_INFO::findUsersByReceiver(++it, this);
+						it_user = USER_INFO::findUsersByReceiver(++it_user, this);
 					}
 
 					return 2;
@@ -2081,10 +2081,10 @@ namespace networkio
 	//test if a message send by myself
 	bool Receiver::isEchoedMessage() const
 	{
-		std::vector< Sender* >::const_iterator it_senders = theApp.Senders_.begin();
-		std::vector< Sender* >::const_iterator end_senders = theApp.Senders_.end();
+		std::vector< std::shared_ptr<networkio::Sender> >::const_iterator it_senders = theApp.Senders_.begin();
+		std::vector< std::shared_ptr<networkio::Sender> >::const_iterator end_senders = theApp.Senders_.end();
 
-		while( (it_senders!=end_senders) && !isFromSender(*it_senders) )
+		while( (it_senders!=end_senders) && !isFromSender((*it_senders).get()) )
 			++it_senders;
 
 		return (it_senders != end_senders);

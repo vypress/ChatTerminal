@@ -1359,8 +1359,8 @@ bool ChatTerminalApp::initDefaultNetConfig()
 		return false;
 
 	Interfaces_.push_back(pi);
-	Senders_.push_back(ps);
-	Receivers_.push_back(pr);
+	Senders_.emplace_back(ps);
+	Receivers_.emplace_back(pr);
 	Commands_.Destinations_.push_back(pd);
 
 	return true;
@@ -1569,8 +1569,8 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 	if(S_OK == hr && listLength >= 3) //interfaces and binding
 	{
 		std::map< std::wstring, networkio::Interface*> mapIdIf;//Temporary map Interface string Id -> Interface object pointer
-		std::map< std::wstring, networkio::Sender*> mapIdSender;//Temporary map Sender string Id -> Sender object pointer
-		std::map< std::wstring, networkio::Sender*> mapIdIfSender;//Temporary map Interface string Id -> Sender object pointer - it uses by receivers for selecting a default sender
+		std::map< std::wstring, std::shared_ptr<networkio::Sender> > mapIdSender;//Temporary map Sender string Id -> Sender object pointer
+		std::map< std::wstring, std::shared_ptr<networkio::Sender> > mapIdIfSender;//Temporary map Interface string Id -> Sender object pointer - it uses by receivers for selecting a default sender
 
 		IXMLDOMNode* pIfItem = 0;
 		hr = xmlhelper::get_xml_item(childsNetworkList, index, wszTagInterfaces, &pIfItem);
@@ -1708,7 +1708,7 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 											{
 												networkio::Interface* pif = it->second;
 
-												networkio::Sender* s = new networkio::Sender();
+												std::shared_ptr<networkio::Sender> ptrS = std::make_shared<networkio::Sender>();
 
 												unsigned short port = 0;
 												if(S_OK==hr3 && varPortValue.bstrVal && *varPortValue.bstrVal)
@@ -1718,17 +1718,17 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 												if(S_OK==hr4 && varTtlValue.bstrVal && *varTtlValue.bstrVal)
 													dwTTL = (DWORD)_wtoi(varTtlValue.bstrVal);
 
-												if(0!=s->bindToInterface(pif, port, dwTTL))
+												if(0!= ptrS->bindToInterface(pif, port, dwTTL))
 												{
 													wchar_t* wszAddress = pif->getStringAddress();
 													consoleio::print_line(wszErrNotBindSender, wszAddress);
 													delete[] wszAddress;
 												}
 
-												mapIdSender[varIdValue.bstrVal] = s;
-												mapIdIfSender[varIfValue.bstrVal] = s;
+												mapIdSender[varIdValue.bstrVal] = ptrS;
+												mapIdIfSender[varIfValue.bstrVal] = ptrS;
 
-												Senders_.push_back(s);
+												Senders_.emplace_back(ptrS);
 											}
 										}
 
@@ -1790,17 +1790,17 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 										if(S_OK==hr1 && S_OK==hr2) //hr3 is not necessary for broadcast
 										{
 											VARIANT varSenderValue = {0};
-											networkio::Sender* s = 0;
+											std::shared_ptr<networkio::Sender> s;
 											HRESULT hr4 = xmlhelper::get_xml_attribute(L"sender", attributeMap, &varSenderValue);
 											if(S_OK==hr4)
 											{
-												std::map< std::wstring, networkio::Sender*>::iterator it = mapIdSender.find(varSenderValue.bstrVal);
+												std::map< std::wstring, std::shared_ptr<networkio::Sender> >::iterator it = mapIdSender.find(varSenderValue.bstrVal);
 												if(it != mapIdSender.end())
 													s = it->second;
 											}
 											else
 											{
-												std::map< std::wstring, networkio::Sender*>::iterator it = mapIdIfSender.find(varSenderValue.bstrVal);
+												std::map< std::wstring, std::shared_ptr<networkio::Sender> >::iterator it = mapIdIfSender.find(varSenderValue.bstrVal);
 												if(it != mapIdIfSender.end())
 													s = it->second;
 											}
@@ -1814,17 +1814,15 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 												{
 													networkio::Interface* pif = it->second;
 
-													networkio::Receiver* r = new networkio::Receiver(s);
+													std::shared_ptr<networkio::Receiver> rPtr = std::make_unique<networkio::Receiver>(s);
 
 													unsigned short port = (unsigned short)_wtoi(varPortValue.bstrVal);
-													if(0 == r->bindToInterface(pif, port, varMcastValue.bstrVal))
+													if(0 == rPtr->bindToInterface(pif, port, varMcastValue.bstrVal))
 													{
-														Receivers_.push_back(r);
+														Receivers_.emplace_back(rPtr);
 													}
 													else
 													{
-														delete r;
-
 														wchar_t* wszAddress = pif->getStringAddress(port);
 														consoleio::print_line(wszErrNotBindRcvr, wszAddress);
 														delete[] wszAddress;
@@ -1891,15 +1889,15 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 										if(S_OK==hr1 && S_OK==hr2 && S_OK==hr3)
 										{
 											//Sender* s = mapIdSender[varSenderValue.bstrVal];
-											networkio::Sender* s = 0;
+											std::shared_ptr<networkio::Sender> s;
 
-											std::map< std::wstring, networkio::Sender*>::const_iterator it = mapIdSender.find(varSenderValue.bstrVal);
+											std::map< std::wstring, std::shared_ptr<networkio::Sender> >::const_iterator it = mapIdSender.find(varSenderValue.bstrVal);
 											if(it != mapIdSender.end())
 												s = it->second;
 
 											if(s)
 											{
-												networkio::DESTADDR_INFO* d = new networkio::DESTADDR_INFO(s);
+												networkio::DESTADDR_INFO* d = new networkio::DESTADDR_INFO(s.get());
 
 												unsigned short port = (unsigned short)_wtoi(varPortValue.bstrVal);
 												if(0 == d->bindToAddress(varAddrValue.bstrVal, port))
@@ -2725,11 +2723,12 @@ void ChatTerminalApp::initialize()
 	//assign the first receiver as my
 	if(Receivers_.size())
 	{
-		networkio::NETADDR_INFO::assign_from_receiver(ptrMe_->naddr_info, Receivers_.front());
+		networkio::NETADDR_INFO::assign_from_receiver(ptrMe_->naddr_info, Receivers_.front().get());
 	}
 
 	//start receivers' threads
-	std::for_each(Receivers_.begin(), Receivers_.end(), std::mem_fun<int, networkio::Receiver>( &networkio::Receiver::start ));
+	std::function<int(std::shared_ptr<networkio::Receiver>&)> f_start_receiver = &networkio::Receiver::start;
+	std::for_each(Receivers_.begin(), Receivers_.end(), f_start_receiver);
 
 	//Start ping-pong and delayed messages timer thread
 	//if(nDropUsersAfterInterval_ > 0)
@@ -2791,14 +2790,11 @@ void ChatTerminalApp::finalize()
 	leaveNetwork();
 
 	//stop receivers' threads
-	//std::for_each(Receivers_.begin(), Receivers_.end(), std::mem_fun<int, networkio::Receiver>( &networkio::Receiver::stop ));
-	std::for_each(Receivers_.begin(), Receivers_.end(), delete_class_ptr<networkio::Receiver>());
 	Receivers_.clear();
 
 	std::for_each(Commands_.Destinations_.begin(), Commands_.Destinations_.end(), delete_class_ptr<networkio::DESTADDR_INFO>());
 	Commands_.Destinations_.clear();
 
-	std::for_each(Senders_.begin(), Senders_.end(), delete_class_ptr<networkio::Sender>());
 	Senders_.clear();
 
 	std::for_each(Interfaces_.begin(), Interfaces_.end(), delete_class_ptr<networkio::Interface>());

@@ -90,8 +90,10 @@ nmake all nodebug=1 APPVER="5.01" cvarsexe="-W4 /EHsc"</NMakeReBuildCommandLine>
     <ClInclude Include="..\src\XmlHelper_msxml.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="ClassDiagram.cd" />
-    <None Include="readme.txt" />
+    <None Include="makefile" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ChatTerminal.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
