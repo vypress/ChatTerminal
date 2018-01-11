@@ -9,6 +9,7 @@ For conditions of distribution and use, see copyright notice in ChatTerminal.h
 
 #pragma once
 
+#include <atomic>
 #ifndef CHATTERM_OS_WINDOWS
 #include <uuid/uuid.h>
 #endif // CHATTERM_OS_WINDOWS
@@ -65,10 +66,19 @@ public:
 	{
 		bool operator()(USER_INFO* const& _xVal, USER_INFO* const& _yVal) const
 		{
-			if(NULL == _xVal) return true;
-			if(NULL == _xVal->nick_) return true;
-			if(NULL == _yVal) return false;
-			if(NULL == _yVal->nick_) return false;
+			if(nullptr == _xVal) return true;
+			if(nullptr == _xVal->nick_) return true;
+			if(nullptr == _yVal) return false;
+			if(nullptr == _yVal->nick_) return false;
+			return (_wcsicmp(_xVal->nick_, _yVal->nick_)<0);
+		}
+
+		bool operator()(const std::shared_ptr<USER_INFO>& _xVal, const std::shared_ptr<USER_INFO>& _yVal) const
+		{
+			if (nullptr == _xVal) return true;
+			if (nullptr == _xVal->nick_) return true;
+			if (nullptr == _yVal) return false;
+			if (nullptr == _yVal->nick_) return false;
 			return (_wcsicmp(_xVal->nick_, _yVal->nick_)<0);
 		}
 	};
@@ -84,10 +94,14 @@ public:
 
 		bool operator()(const USER_INFO* pi) const
 		{
-			if(NULL == pi) return false;
-			if(NULL == _pm->nick_) return (NULL == pi->nick_);
-			if(NULL == pi->nick_) return false;
-			return 0 == _wcsicmp(_pm->nick_, pi->nick_);
+			if (nullptr == _pm ) return nullptr == pi;
+			return _pm->cmpNick(pi->getNick());
+		}
+
+		bool operator()(const wchar_t* nick) const
+		{
+			if (nullptr == _pm) return nick==nullptr;
+			return _pm->cmpNick(nick);
 		}
 	};
 
@@ -100,15 +114,13 @@ public:
 		{
 		}
 
-		bool operator()(const USER_INFO* pi) const
+		bool operator()(const std::shared_ptr<USER_INFO>& ptr) const
 		{
-			if(NULL == pi) return false;
-			if(NULL == pi->nick_) return false;
-			return 0 == _wcsicmp(_pwsz, pi->nick_);
+			return ptr->cmpNick(_pwsz);
 		}
 	};
 
-	typedef std::set< USER_INFO*, Less >::const_iterator ConstIteratorOfUsers;
+	using ConstIteratorOfUsers = std::set< std::shared_ptr<USER_INFO>, Less >::const_iterator;
 
 	// Universally Unique Identifiers (UUIDs) of the user
 #ifdef CHATTERM_OS_WINDOWS
@@ -156,22 +168,19 @@ public:
 	mutable double flood;
 
 	// Amount of unconfirmed ping requests to the user
-	mutable volatile int pings;
+	mutable std::atomic_int pings;
 
 	// Time when the latest ping was sent to the user
 	mutable time_t last_ping;
 
 	// Amount of unconfirmed beep requests to the user
-	mutable volatile int beeps;
+	mutable std::atomic_int beeps;
 
 	// Amount of unconfirmed info requests to the user
-	mutable volatile int infos;
+	mutable std::atomic_int infos;
 
 	// A network address of the user
 	networkio::NETADDR_INFO naddr_info;
-
-	//Pointer to object that contains user personal information
-	PERSONAL_INFO* pinfo;
 
 	USER_INFO()
 		: ver(0x00020001),//0x00010009 1.9 for TextMsg
@@ -190,7 +199,6 @@ public:
 		last_ping(0),
 		beeps(0),
 		infos(0),
-		pinfo(0),
 		nick_(0)
 	{
 #ifdef CHATTERM_OS_WINDOWS
@@ -217,12 +225,6 @@ public:
 			pub_key = 0;
 			pub_key_size = 0;
 		}
-
-		if(pinfo)
-		{
-			delete pinfo;
-			pinfo = 0;
-		}
 	}
 
 	~USER_INFO()
@@ -236,6 +238,15 @@ public:
 	@return - true if successful
 	*/
 	bool loadFromXml(const wchar_t* file_path);
+
+	bool cmpNick(const wchar_t* nick) const
+	{
+		if (nick_ == nick) return true;
+
+		if (nullptr == nick || nullptr == nick_) return false;
+
+		return 0 == _wcsicmp(nick_, nick);
+	}
 
 	/**
 	Accessors to the nick_ member
@@ -286,7 +297,7 @@ public:
 	          false otherwise. This function returns in ppinfo a pointer to a user object
 	          regardless of blocking of the user
 	*/
-	static bool isUserInList(const wchar_t* name, USER_INFO** ppinfo);
+	static bool isUserInList(const wchar_t* name, std::shared_ptr<USER_INFO>& refPtrUserInfo);
 
 	/**
 	Removes a user with name from the list of users;
@@ -315,7 +326,7 @@ public:
 	static const wchar_t* const NullNick_;
 
 	// Set of all users discovered from a network
-	static std::set< USER_INFO*, Less > SetOfUsers_;
+	static std::set< std::shared_ptr<USER_INFO>, Less > SetOfUsers_;
 
 	// Maximum nickname length
 	static const size_t MaxNickLength = 35;

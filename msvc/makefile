@@ -88,4 +88,4 @@ $(OUTDIR)\$(PROJ).exe: $(PROJ_OBJS)
 
 # Rules for cleaning out those old files
 clean:
-        $(CLEANUP)
+        if exist $(OUTDIR)/$(NULL) rd /s /q $(OUTDIR)

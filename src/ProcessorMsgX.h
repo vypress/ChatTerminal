@@ -145,11 +145,11 @@ private:
 	@to - user name who is message for
 	@from - user name who is message from
 	@channel - channel name which is message in
-	@ppinfo - returned pointer to an object which describes a user with name @from
+	@ppUserInfo - returned pointer to an object which describes a user with name @from
 	@ppchinfo - returned pointer to an object which describes a channel with name @channel
 	@return true if a message is intended for you and from a user from your network and channel
 	*/
-	bool checkMessage(const wchar_t* to, const wchar_t* from, const wchar_t* channel, USER_INFO** ppinfo, CHANNEL_INFO** ppchinfo);
+	bool checkMessage(const wchar_t* to, const wchar_t* from, const wchar_t* channel, std::shared_ptr<USER_INFO>& ptrUserInfo, std::shared_ptr<CHANNEL_INFO>& ptrChInfo);
 
 #ifdef GTEST_PROJECT
 	friend class LineBreaks_Parsing_Test;

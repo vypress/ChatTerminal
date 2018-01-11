@@ -15,6 +15,7 @@
     <ProjectGuid>{7F2C59D0-E263-48D2-8CC5-0A9434E33C69}</ProjectGuid>
     <RootNamespace>ChatConsole</RootNamespace>
     <Keyword>MakeFileProj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -37,11 +38,11 @@
     <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(Configuration)\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(Configuration)\</IntDir>
-    <NMakeBuildCommandLine Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nmake APPVER="5.01" cvarsexe="-D_DEBUG -D_CRTDBG_MAP_ALLOC /EHsc"</NMakeBuildCommandLine>
-    <NMakeReBuildCommandLine Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nmake clean APPVER="5.01"
-nmake all APPVER="5.01" cvarsexe="-W4 -D_DEBUG -D_CRTDBG_MAP_ALLOC /EHsc"</NMakeReBuildCommandLine>
-    <NMakeCleanCommandLine Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nmake clean APPVER="5.01"</NMakeCleanCommandLine>
-    <NMakeOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">XP32_DEBUG\ChatTerm.exe</NMakeOutput>
+    <NMakeBuildCommandLine Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nmake APPVER="5.01" CPU=i386 cvarsexe="-D_DEBUG -D_CRTDBG_MAP_ALLOC /EHsc"</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nmake clean APPVER="5.01" CPU=i386
+nmake all APPVER="5.01" CPU=i386 cvarsexe="-W4 -D_DEBUG -D_CRTDBG_MAP_ALLOC /EHsc"</NMakeReBuildCommandLine>
+    <NMakeCleanCommandLine Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nmake clean APPVER="5.01"  CPU=i386</NMakeCleanCommandLine>
+    <NMakeOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">WIN_DEBUG\ChatTerm.exe</NMakeOutput>
     <NMakePreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">CHATTERM_OS_WINDOWS;WIN32;_DEBUG;UNICODE;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
     <NMakeIncludeSearchPath Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
     <NMakeForcedIncludes Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(NMakeForcedIncludes)</NMakeForcedIncludes>
@@ -89,7 +90,10 @@ nmake all nodebug=1 APPVER="5.01" cvarsexe="-W4 /EHsc"</NMakeReBuildCommandLine>
     <ClInclude Include="..\src\XmlHelper_msxml.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="readme.txt" />
+    <None Include="makefile" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ChatTerminal.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -39,14 +39,14 @@ const wchar_t* const USER_INFO::colors_[16]={L"black", L"blue",L"green",L"aqua"
 						,L"light red",L"light purple",L"light yellow",L"bright white"};
 
 //It must be accessed in ContainersMonitor CONTAINERS_MONITOR Critical Section
-std::set< USER_INFO*, USER_INFO::Less > USER_INFO::SetOfUsers_;
+std::set< std::shared_ptr<USER_INFO>, USER_INFO::Less > USER_INFO::SetOfUsers_;
 
 USER_INFO::ConstIteratorOfUsers USER_INFO::findUsersByReceiver(ConstIteratorOfUsers it, const networkio::Receiver* pcrcvr)
 {
 	ConstIteratorOfUsers end = SetOfUsers_.end();
 	while(it != end)
 	{
-		if(*it == &theApp.Me_)
+		if(theApp.ptrMe_ = *it)
 		{
 			if(pcrcvr->isEchoedMessage())
 				return it;
@@ -61,15 +61,14 @@ USER_INFO::ConstIteratorOfUsers USER_INFO::findUsersByReceiver(ConstIteratorOfUs
 	return SetOfUsers_.end();
 }
 
-bool USER_INFO::isUserInList(const wchar_t* name, USER_INFO** ppinfo)
+bool USER_INFO::isUserInList(const wchar_t* name, std::shared_ptr<USER_INFO>& refPtrUserInfo)
 {
 	ConstIteratorOfUsers it = std::find_if(SetOfUsers_.begin(), SetOfUsers_.end(), NameComparator(name));
-	//ConstIteratorOfUsers it = SetOfUsers_.find(name);
 
 	bool result = ((it != SetOfUsers_.end()) && (*it));
 	if(result)
 	{
-		if((*it!=&theApp.Me_) && ((*it)->flood>0))
+		if(*it!=theApp.ptrMe_ && ((*it)->flood>0))
 		{
 			time_t curt = 0;
 			time(&curt);
@@ -86,7 +85,7 @@ bool USER_INFO::isUserInList(const wchar_t* name, USER_INFO** ppinfo)
 		else
 			time(&(*it)->last_activity);
 
-		if(ppinfo) *ppinfo = (*it);
+		refPtrUserInfo = *it;
 	}
 
 	return result;
@@ -111,52 +110,45 @@ USER_INFO::ConstIteratorOfUsers USER_INFO::removeUserFromList(ConstIteratorOfUse
 #endif // CHATTERM_OS_WINDOWS
 	}
 
-	if(*it_u != &theApp.Me_)
+	CHANNEL_INFO::ConstIteratorOfChannels it_ch = CHANNEL_INFO::SetOfChannels_.begin();
+	//CHANNEL_INFO::ConstIteratorOfChannels it_ch_end = CHANNEL_INFO::SetOfChannels_.end();
+
+	while(it_ch != CHANNEL_INFO::SetOfChannels_.end())
 	{
-		CHANNEL_INFO::ConstIteratorOfChannels it_ch = CHANNEL_INFO::SetOfChannels_.begin();
-		//CHANNEL_INFO::ConstIteratorOfChannels it_ch_end = CHANNEL_INFO::SetOfChannels_.end();
-
-		while(it_ch != CHANNEL_INFO::SetOfChannels_.end())
+		if(*it_ch)
 		{
-			if(*it_ch)
-			{
-				CHANNEL_INFO::IteratorOfChannelUsers it = std::find_if((*it_ch)->users.begin(), (*it_ch)->users.end(), Comparator(*it_u));
-				if(it != (*it_ch)->users.end())
-					(*it_ch)->users.erase(it);
-			}
-
-			if((*it_ch)->users.size()<1)//remove channel
-			{
-				if(*it_ch) delete *it_ch;
-#ifdef CHATTERM_OS_WINDOWS
-				it_ch = CHANNEL_INFO::SetOfChannels_.erase(it_ch);
-#else
-				size_t n = std::distance(CHANNEL_INFO::SetOfChannels_.begin(), it_ch);
-				CHANNEL_INFO::SetOfChannels_.erase(it_ch);
-
-				it_ch = CHANNEL_INFO::SetOfChannels_.begin();
-				CHANNEL_INFO::ConstIteratorOfChannels end = CHANNEL_INFO::SetOfChannels_.end();
-				while(n-- && ++it_ch!=end);
-#endif // CHATTERM_OS_WINDOWS
-			}
-			else
-				++it_ch;
+			CHANNEL_INFO::IteratorOfChannelUsers it = std::find_if((*it_ch)->users.begin(), (*it_ch)->users.end(), USER_INFO::Comparator((*it_u).get()));
+			if(it != (*it_ch)->users.end())
+				(*it_ch)->users.erase(it);
 		}
 
-		delete *it_u;
+		if((*it_ch)->users.size()<1)//remove channel
+		{
 #ifdef CHATTERM_OS_WINDOWS
-		return SetOfUsers_.erase(it_u);
+			it_ch = CHANNEL_INFO::SetOfChannels_.erase(it_ch);
 #else
-		size_t n = std::distance(SetOfUsers_.begin(), it_u);
-		SetOfUsers_.erase(it_u);
-		it_u = SetOfUsers_.begin();
-		ConstIteratorOfUsers end = SetOfUsers_.end();
-		while(n-- && ++it_u!=end);
-		return it_u;
+			size_t n = std::distance(CHANNEL_INFO::SetOfChannels_.begin(), it_ch);
+			CHANNEL_INFO::SetOfChannels_.erase(it_ch);
+
+			it_ch = CHANNEL_INFO::SetOfChannels_.begin();
+			CHANNEL_INFO::ConstIteratorOfChannels end = CHANNEL_INFO::SetOfChannels_.end();
+			while(n-- && ++it_ch!=end);
 #endif // CHATTERM_OS_WINDOWS
+		}
+		else
+			++it_ch;
 	}
 
-	return SetOfUsers_.end();
+#ifdef CHATTERM_OS_WINDOWS
+	return SetOfUsers_.erase(it_u);
+#else
+	size_t n = std::distance(SetOfUsers_.begin(), it_u);
+	SetOfUsers_.erase(it_u);
+	it_u = SetOfUsers_.begin();
+	ConstIteratorOfUsers end = SetOfUsers_.end();
+	while(n-- && ++it_u!=end);
+	return it_u;
+#endif // CHATTERM_OS_WINDOWS
 }
 
 void USER_INFO::removeUserFromList(const wchar_t* name)
@@ -314,10 +306,10 @@ bool PERSONAL_INFO::getOS(std::wstring& strOS)
 bool PERSONAL_INFO::getDomainName(std::wstring& strDomain)
 {
 	bool result = true;
-	wchar_t wszUserName[UNLEN + 1] = {0};
-	wchar_t wszDomainName[DNLEN + 1] = {0};
-	DWORD dwUNLen = _ARRAYSIZE(wszUserName);
-	DWORD dwDNLen = _ARRAYSIZE(wszDomainName);
+	wchar_t wszUser[UNLEN + 1] = {0};
+	wchar_t wszDomain[DNLEN + 1] = {0};
+	DWORD dwUNLen = _ARRAYSIZE(wszUser);
+	DWORD dwDNLen = _ARRAYSIZE(wszDomain);
 
 	HANDLE hToken   = NULL;
 	PTOKEN_USER ptiUser  = NULL;
@@ -361,7 +353,7 @@ bool PERSONAL_INFO::getDomainName(std::wstring& strDomain)
 			throw 6;
 
 		// Retrieve user name and domain name based on user's SID.
-		if (!LookupAccountSid(NULL, ptiUser->User.Sid, wszUserName, &dwUNLen, wszDomainName, &dwDNLen, &snu))
+		if (!LookupAccountSid(NULL, ptiUser->User.Sid, wszUser, &dwUNLen, wszDomain, &dwDNLen, &snu))
 			throw 7;
 	}
 	catch(...)
@@ -376,7 +368,7 @@ bool PERSONAL_INFO::getDomainName(std::wstring& strDomain)
 	if (ptiUser)
 		HeapFree(GetProcessHeap(), 0, ptiUser);
 
-	strDomain = wszDomainName;
+	strDomain = wszDomain;
 	return result;
 }
 
@@ -508,7 +500,7 @@ bool USER_INFO::loadFromXml(const wchar_t* file_path)
 	if(S_OK == hr)
 	{
 		IXMLDOMNodeList *childsList = 0;
-		HRESULT hr = pUserInfoNode->get_childNodes(&childsList);
+		hr = pUserInfoNode->get_childNodes(&childsList);
 		long index = 0;
 
 		long listLength = 0;
@@ -587,7 +579,7 @@ bool USER_INFO::loadFromXml(const wchar_t* file_path)
 		if(S_OK == hr)
 		{
 			IXMLDOMNodeList *childsPersonalInfoList = 0;
-			HRESULT hr = pPersonalInfoNode->get_childNodes(&childsPersonalInfoList);
+			hr = pPersonalInfoNode->get_childNodes(&childsPersonalInfoList);
 
 			long listPersonalInfoLength = 0;
 			if(S_OK == hr)
@@ -595,15 +587,15 @@ bool USER_INFO::loadFromXml(const wchar_t* file_path)
 
 			if(S_OK == hr && listPersonalInfoLength >= 8)
 			{
-				long index = 0;
-				xmlhelper::get_xml_item_text(childsPersonalInfoList, index, L"full_name", pinfo->full_name);
-				xmlhelper::get_xml_item_text(childsPersonalInfoList, index, L"job", pinfo->job);
-				xmlhelper::get_xml_item_text(childsPersonalInfoList, index, L"department", pinfo->department);
-				xmlhelper::get_xml_item_text(childsPersonalInfoList, index, L"phone_work", pinfo->phone_work);
-				xmlhelper::get_xml_item_text(childsPersonalInfoList, index, L"phone_mob", pinfo->phone_mob);
-				xmlhelper::get_xml_item_text(childsPersonalInfoList, index, L"www", pinfo->www);
-				xmlhelper::get_xml_item_text(childsPersonalInfoList, index, L"email", pinfo->email);
-				xmlhelper::get_xml_item_text(childsPersonalInfoList, index, L"address", pinfo->address);
+				long childs_index = 0;
+				xmlhelper::get_xml_item_text(childsPersonalInfoList, childs_index, L"full_name", theApp.MyPersonalInfo_.full_name);
+				xmlhelper::get_xml_item_text(childsPersonalInfoList, childs_index, L"job", theApp.MyPersonalInfo_.job);
+				xmlhelper::get_xml_item_text(childsPersonalInfoList, childs_index, L"department", theApp.MyPersonalInfo_.department);
+				xmlhelper::get_xml_item_text(childsPersonalInfoList, childs_index, L"phone_work", theApp.MyPersonalInfo_.phone_work);
+				xmlhelper::get_xml_item_text(childsPersonalInfoList, childs_index, L"phone_mob", theApp.MyPersonalInfo_.phone_mob);
+				xmlhelper::get_xml_item_text(childsPersonalInfoList, childs_index, L"www", theApp.MyPersonalInfo_.www);
+				xmlhelper::get_xml_item_text(childsPersonalInfoList, childs_index, L"email", theApp.MyPersonalInfo_.email);
+				xmlhelper::get_xml_item_text(childsPersonalInfoList, childs_index, L"address", theApp.MyPersonalInfo_.address);
 
 				result = true;
 			}

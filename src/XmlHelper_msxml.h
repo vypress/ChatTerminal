@@ -9,6 +9,7 @@ For conditions of distribution and use, see copyright notice in ChatTerminal.h
 #pragma once
 
 #include <msxml2.h>
+#include <msxml6.h>
 
 namespace xmlhelper
 {

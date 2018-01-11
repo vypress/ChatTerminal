@@ -22,8 +22,8 @@ namespace xmlhelper
 			//if(FAILED(hRes))
 			{
 				// Trying MSXML 4.0
-				hRes = CoCreateInstance(CLSID_DOMDocument40, NULL, CLSCTX_INPROC_SERVER, IID_IXMLDOMDocument, (void**)ppXMLDoc);
-				if(FAILED(hRes))
+				//hRes = CoCreateInstance(CLSID_DOMDocument40, NULL, CLSCTX_INPROC_SERVER, IID_IXMLDOMDocument, (void**)ppXMLDoc);
+				//if(FAILED(hRes))
 				{
 					hRes = CoCreateInstance(CLSID_DOMDocument30, NULL, CLSCTX_INPROC_SERVER, IID_IXMLDOMDocument, (void**)ppXMLDoc);
 					if (FAILED(hRes))
@@ -154,7 +154,7 @@ namespace xmlhelper
 			pListItem = 0;
 
 			DOMNodeType type = NODE_INVALID;
-			long index = 0;
+			long child_index = 0;
 
 			BSTR bstrCollectedText = 0;
 			unsigned int cch = 0;
@@ -162,7 +162,7 @@ namespace xmlhelper
 			//skip comments and collect text from text nodes
 			do
 			{
-				hr1 = pChildsList->get_item(index++, &pListItem);
+				hr1 = pChildsList->get_item(child_index++, &pListItem);
 				if((S_OK == hr) && pListItem)
 				{
 					hr = pListItem->get_nodeType(&type);

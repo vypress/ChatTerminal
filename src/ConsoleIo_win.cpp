@@ -7,20 +7,30 @@ Copyright (c) 2010 VyPRESS Research, LLC. All rights reserved.
 For conditions of distribution and use, see copyright notice in ChatTerminal.h
 */
 
+#include <iostream>
+#include "ChatTerminal.h"
+
+/*
 #include <time.h>
 
-#include <iostream>
+
 #include <deque>
 #include <set>
 #include <vector>
 #include <algorithm>
 #include <string>
+#include <memory>
+#include <functional> // std::function
+#include <algorithm> // std::equal
+#include <cctype> // std::tolower
 
 #include "NetworkIo.h"
 #include "USER_INFO.h"
 #include "CHANNEL_INFO.h"
 #include "ConsoleIo.h"
+*/
 #include "StrResources.h"
+
 
 #include <WinDef.h>
 #include <Winnt.h>
@@ -87,7 +97,7 @@ namespace consoleio
 	@attribute - reference to a variable that receives the attributes of the characters written to a screen buffer
 	@return - length of the typed text
 	*/
-	SHORT console_clear_typed_text(WCHAR*& printed, SHORT& cursor_pos, WORD& attribute)
+	SHORT console_clear_typed_text(wstring& printed, SHORT& cursor_pos, WORD& attribute)
 	{
 		CONSOLE_SCREEN_BUFFER_INFO csbi = {0};
 		if(!GetConsoleScreenBufferInfo(hStdout, &csbi))
@@ -110,16 +120,14 @@ namespace consoleio
 		cursor_pos = (csbi.dwCursorPosition.Y - yStartTyping)*max_width + csbi.dwCursorPosition.X - xStartTyping;
 		if(cursor_pos<0) cursor_pos = 0;
 
-		printed = new WCHAR[max_width*lines - xStartTyping +1];// 1 + Terminating Null
-		printed[max_width*lines - xStartTyping] = 0;
-
+		printed.resize(max_width*lines - xStartTyping);
 		COORD dwBufferSize = { max_width, lines };
 		COORD dwBufferCoord = { 0, 0 }; 
 		SMALL_RECT rcRegion = { 0, yStartTyping, max_width-1, yStartTyping+lines-1};
 
-		CHAR_INFO* buffer = new CHAR_INFO[max_width*lines];
+		std::unique_ptr<CHAR_INFO[]> bufferPtr = std::make_unique<CHAR_INFO[]>(max_width*lines);
 
-		ReadConsoleOutput( hStdout, (CHAR_INFO *)buffer, dwBufferSize, dwBufferCoord, &rcRegion );
+		ReadConsoleOutput( hStdout, bufferPtr.get(), dwBufferSize, dwBufferCoord, &rcRegion );
 
 		//remember and clear typed text
 		SHORT printed_len = 0;
@@ -132,21 +140,18 @@ namespace consoleio
 				{
 					if(index < nTyped + xStartTyping)
 					{
-						printed[index-xStartTyping] = buffer[index].Char.UnicodeChar;
+						printed[index - xStartTyping] = bufferPtr[index].Char.UnicodeChar;
 						printed_len++;
 					}
-					else
-						printed[index-xStartTyping] = 0;
 				}
 
-				buffer[index].Char.UnicodeChar = wchFill;
-				buffer[index].Attributes = csbi.wAttributes;
+				bufferPtr[index].Char.UnicodeChar = wchFill;
+				bufferPtr[index].Attributes = csbi.wAttributes;
 			}
 		}
 
 		//clear typed text
-		WriteConsoleOutput( hStdout, buffer, dwBufferSize, dwBufferCoord, &rcRegion );
-		delete[] buffer;
+		WriteConsoleOutput( hStdout, bufferPtr.get(), dwBufferSize, dwBufferCoord, &rcRegion );
 
 		xStartTyping = 0;
 		nTyped = 0;
@@ -154,6 +159,7 @@ namespace consoleio
 		COORD sPos = {xStartTyping, yStartTyping};
 		SetConsoleCursorPosition( hStdout, sPos );
 
+		printed.resize(printed_len);
 		return printed_len;
 	}
 
@@ -167,29 +173,14 @@ namespace consoleio
 	{
 		WORD attribute = 0;
 		SHORT cursor_pos = 0;
-		WCHAR* printed = 0;
-		int printed_len = console_clear_typed_text(printed, cursor_pos, attribute);
+		console_clear_typed_text(strTyped, cursor_pos, attribute);
 
-		if(printed)
-		{
-			if(printed_len>0)
-			{
-				//remove trailing spaces
-				while(iswspace(*(printed+printed_len-1)))
-				{
-					*(printed+printed_len-1) = 0;
-					--printed_len;
-				}
-
-				strTyped.assign(printed, printed_len);
-			}
-
-			delete[] printed;
-		}
+		//remove trailing spaces
+		strTyped.erase(std::find_if(strTyped.rbegin(), strTyped.rend(), [](wchar_t ch) {return !std::iswspace(ch);}).base(), strTyped.end());
 
 		//print the invitation
 		const CHANNEL_INFO* pacchinfo = CHANNEL_INFO::getActiveChannel();
-		if(pacchinfo && pacchinfo->name)
+		if(pacchinfo && !pacchinfo->name.empty())
 		{
 			wcout<<pacchinfo->name;
 		}
@@ -205,7 +196,7 @@ namespace consoleio
 		else
 			wcout << wszErrCsbi << hex << GetLastError() << endl;
 
-		return printed_len;
+		return strTyped.length();
 	}
 
 	/**
@@ -247,14 +238,14 @@ namespace consoleio
 		}
 
 		//determine and scroll 'b' characters
-		SMALL_RECT srctScrollRect = {dwCursorPosition.X-1, dwCursorPosition.Y, srWindowRight, yStartTyping+lines-1};
-		SMALL_RECT srctClipRect = {dwCursorPosition.X-1, dwCursorPosition.Y, srWindowRight, yStartTyping+lines-1};
+		SMALL_RECT srctScrollRectB = {dwCursorPosition.X-1, dwCursorPosition.Y, srWindowRight, yStartTyping+lines-1};
+		SMALL_RECT srctClipRectB = {dwCursorPosition.X-1, dwCursorPosition.Y, srWindowRight, yStartTyping+lines-1};
 
 		// Scroll up one character.
 		ScrollConsoleScreenBuffer(
 			hStdout,         // screen buffer handle
-			&srctScrollRect, // scrolling rectangle
-			&srctClipRect,   // clipping rectangle
+			&srctScrollRectB, // scrolling rectangle
+			&srctClipRectB,   // clipping rectangle
 			dwCursorPosition,       // top left destination cell
 			&chiFill);       // fill character and color
 		///////////////////////////////////////
@@ -262,14 +253,14 @@ namespace consoleio
 		//determine and scroll 'e' characters
 		if((dwCursorPosition.X>1) && (dwCursorPosition.Y<yStartTyping+lines-1))
 		{
-			SMALL_RECT srctScrollRect = {0, dwCursorPosition.Y+1, dwCursorPosition.X-2, yStartTyping+lines-1};
-			SMALL_RECT srctClipRect = {0, dwCursorPosition.Y+1, dwCursorPosition.X-1, yStartTyping+lines-1};
+			SMALL_RECT srctScrollRectE = {0, dwCursorPosition.Y+1, dwCursorPosition.X-2, yStartTyping+lines-1};
+			SMALL_RECT srctClipRectE = {0, dwCursorPosition.Y+1, dwCursorPosition.X-1, yStartTyping+lines-1};
 			COORD coordDest = {1, dwCursorPosition.Y+1};
 
 			ScrollConsoleScreenBuffer(
 				hStdout,         // screen buffer handle
-				&srctScrollRect, // scrolling rectangle
-				&srctClipRect,   // clipping rectangle
+				&srctScrollRectE, // scrolling rectangle
+				&srctClipRectE,   // clipping rectangle
 				coordDest,       // top left destination cell
 				&chiFill);       // fill character and color
 		}
@@ -713,7 +704,7 @@ namespace consoleio
 
 		WORD wOldTextAttributes = 0;
 		SHORT cursor_pos = 0;
-		WCHAR* printed = 0;
+		wstring printed;
 		SHORT printed_len = 0;
 
 		if(fConsoleOut)
@@ -737,7 +728,7 @@ namespace consoleio
 		int nResult = 0;
 		if(format && *format)
 		{
-			nResult = vwprintf(format, argptr);
+			nResult = vwprintf_s(format, argptr);
 			wcout<<endl;
 		}
 
@@ -748,7 +739,7 @@ namespace consoleio
 
 			//print the invitation
 			const CHANNEL_INFO* pacchinfo = CHANNEL_INFO::getActiveChannel();
-			if(pacchinfo && pacchinfo->name)
+			if(pacchinfo && pacchinfo->name.length()>0)
 			{
 				wcout<<pacchinfo->name;
 			}
@@ -765,29 +756,25 @@ namespace consoleio
 				wcout << wszErrCsbi << hex << GetLastError() << endl;
 
 			//restore typed text
-			if(printed)
+			if(!printed.empty())
 			{
-				if(printed_len>0)
+				nTyped = printed_len;
+				wcout<<printed;
+				//restore cursor position
+				if(cursor_pos>=0 && cursor_pos<printed_len)
 				{
-					nTyped = printed_len;
-					wcout<<printed;
-					//restore cursor position
-					if(cursor_pos>=0 && cursor_pos<printed_len)
+					SHORT lines = csbi.dwMaximumWindowSize.X > 0 ? (cursor_pos + xStartTyping)/csbi.dwMaximumWindowSize.X : 0;
+					SHORT last_pos = csbi.dwMaximumWindowSize.X > 0 ? (cursor_pos + xStartTyping)%csbi.dwMaximumWindowSize.X : 0;
+
+					COORD sPos = {last_pos, yStartTyping+lines};
+					if((nTyped<1) || ((sPos.X < xStartTyping) && (sPos.Y == yStartTyping)))
 					{
-						SHORT lines = csbi.dwMaximumWindowSize.X > 0 ? (cursor_pos + xStartTyping)/csbi.dwMaximumWindowSize.X : 0;
-						SHORT last_pos = csbi.dwMaximumWindowSize.X > 0 ? (cursor_pos + xStartTyping)%csbi.dwMaximumWindowSize.X : 0;
-
-						COORD sPos = {last_pos, yStartTyping+lines};
-						if((nTyped<1) || ((sPos.X < xStartTyping) && (sPos.Y == yStartTyping)))
-						{
-							_ASSERTE(!"Wrong cursor position!");
-							sPos.X = xStartTyping;
-						}
-
-						SetConsoleCursorPosition( hStdout, sPos );
+						_ASSERTE(!"Wrong cursor position!");
+						sPos.X = xStartTyping;
 					}
+
+					SetConsoleCursorPosition( hStdout, sPos );
 				}
-				delete[] printed;
 			}
 		}
 
@@ -1042,6 +1029,16 @@ namespace consoleio
 		va_end(argptr);
 
 		return nResult;
+	}
+
+	int print_line(const std::wstring& strline)
+	{
+		return vprint_line(byteTextColor, false, strline.c_str(), nullptr);
+	}
+
+	int print_line(const wchar_t* format, const std::wstring& strarg)
+	{
+		return print_line(format, strarg.c_str(), 0);//добавлен ещё один параметр, что бы вызвать функцию int print_line(const wchar_t* format, ...)
 	}
 
 	int print_line(const wchar_t* format, ...)
