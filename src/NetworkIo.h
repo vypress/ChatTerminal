@@ -120,7 +120,7 @@ namespace networkio
 		/**
 		Binds socket to specified network interface, port; Sets necessary socket options
 		*/
-		int bindToInterface(const Interface* pif, unsigned short port, DWORD dwTTL);
+		int bindToInterface(const std::shared_ptr<Interface>, unsigned short port, DWORD dwTTL);
 
 		int sendTo(const sockaddr* paddr, const char* buf, int len) const;
 
@@ -134,7 +134,7 @@ namespace networkio
 	private:
 		SOCKET sock_;
 		unsigned short port_;
-		const Interface* pif_;
+		const std::shared_ptr<Interface> pif_;
 
 	friend class Receiver;
 	};
@@ -181,11 +181,10 @@ namespace networkio
 		};
 
 	public:
-		explicit Receiver(std::shared_ptr<Sender> ptrSender)
+		explicit Receiver(const Sender* pcSender)
 			: sock_(INVALID_SOCKET)
 			,port_(0)
-			,pif_(0)
-			,ptrSender_(ptrSender)
+			,pcSender_(pcSender)
 			,fStop_(false)
 #ifdef CHATTERM_OS_WINDOWS
 			,eventRead_(WSACreateEvent())
@@ -204,7 +203,7 @@ namespace networkio
 			if(WSA_INVALID_EVENT!=eventRead_)
 				WSACloseEvent(eventRead_);
 #endif
-			if(INVALID_SOCKET != sock_ && (!ptrSender_ || sock_ != ptrSender_->sock_))
+			if(INVALID_SOCKET != sock_ && (!pcSender_ || sock_ != pcSender_->sock_))
 			{
 				closesocket(sock_);
 				sock_ = INVALID_SOCKET;
@@ -214,7 +213,7 @@ namespace networkio
 		/**
 		Binds socket to specified network interface, port; Sets necessary socket options; Joins to the multicast group(s)
 		*/
-		int bindToInterface(const Interface* pif, unsigned short port, const wchar_t* wszMcastGroups);
+		int bindToInterface(std::shared_ptr<Interface>& ptrIf, unsigned short port, const wchar_t* wszMcastGroups);
 
 		/**
 		Starts the receiver thread.
@@ -233,7 +232,7 @@ namespace networkio
 		*/
 		const Sender* getSender() const
 		{
-			return ptrSender_.get();
+			return pcSender_;
 		}
 
 		/**
@@ -270,14 +269,14 @@ namespace networkio
 		unsigned short port_;
 
 		//Pointer to the interface object where the socket bind
-		const Interface* pif_;
+		std::shared_ptr<Interface> ptrIf_;
 
 		// Temporary buffer for storing an address from the latest datagram was received
 		// It is also used in bindToInterface() to obtain a really bound address and port
 		sockaddr_in6 from_addr_;
 
 		//Pointer to the sender object which is used to send reply messages to recipients
-		std::shared_ptr<Sender> ptrSender_;
+		const Sender* pcSender_;
 
 		// Flag to stop the receiver thread
 		bool fStop_;
@@ -384,9 +383,10 @@ namespace networkio
 	Struct describes an object which is used for sending broadcast
 	and multicast UDP datagrams by specified sender object
 	*/
-	struct DESTADDR_INFO
+	class DESTADDR_INFO
 	{
-		explicit DESTADDR_INFO(const Sender* psender) : psender_(psender), psaddr_(0)
+	public:
+		DESTADDR_INFO(const Sender* psender) : psender_(psender), psaddr_(0)
 		{
 			psaddr_ = reinterpret_cast<sockaddr*>(new sockaddr_in6);
 			memset(psaddr_, 0x00, sizeof(sockaddr_in6));

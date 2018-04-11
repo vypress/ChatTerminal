@@ -90,9 +90,12 @@ class Commands
 		}
 
 	private:
-		DatagramIdMonitor(const DatagramIdMonitor&);
-		DatagramIdMonitor& operator=(const DatagramIdMonitor&);
-		DatagramIdMonitor* operator&();
+		DatagramIdMonitor(const DatagramIdMonitor&) = delete;
+		DatagramIdMonitor& operator=(const DatagramIdMonitor&) = delete;
+		DatagramIdMonitor* operator&() = delete;
+
+		DatagramIdMonitor(DatagramIdMonitor&&) = delete;
+		DatagramIdMonitor& operator= (DatagramIdMonitor&&) = delete;
 
 		static void Initialize()
 		{
@@ -132,9 +135,12 @@ class Commands
 		}
 
 	private:
-		DelayedMsgsMonitor(const DelayedMsgsMonitor&);
-		DelayedMsgsMonitor& operator=(const DelayedMsgsMonitor&);
-		DelayedMsgsMonitor* operator&();
+		DelayedMsgsMonitor(const DelayedMsgsMonitor&) = delete;
+		DelayedMsgsMonitor& operator=(const DelayedMsgsMonitor&) = delete;
+		DelayedMsgsMonitor* operator&() = delete;
+
+		DelayedMsgsMonitor(DelayedMsgsMonitor&&) = delete;
+		DelayedMsgsMonitor& operator= (DelayedMsgsMonitor&&) = delete;
 
 		static void Initialize()
 		{
@@ -218,7 +224,6 @@ class Commands
 #ifdef CHATTERM_OS_WINDOWS
 			when_(GetTickCount()+delay),
 #endif // CHATTERM_OS_WINDOWS
-			what_(0),
 			what_len_(len),
 			by_(pinfo->naddr_info.preceiver_->getSender())
 		{
@@ -232,14 +237,9 @@ class Commands
 			}
 			
 #endif // CHATTERM_OS_WINDOWS
-			what_=new char[what_len_];
-			memcpy(what_, buf, what_len_);
+			what_= std::make_unique<char[]>(what_len_);
+			memcpy(what_.get(), buf, what_len_);
 			memcpy(&to_, pinfo->naddr_info.psaddr_, sizeof(sockaddr_in6));
-		}
-
-		~DELAYED_MSG_DATA()
-		{
-			delete[] what_;
 		}
 
 		//Time when to send the message
@@ -249,7 +249,7 @@ class Commands
 		struct timeval when_;
 #endif // CHATTERM_OS_WINDOWS
 		//Pointer to data to be sent
-		char* what_;
+		std::unique_ptr<char[]> what_;
 
 		//Size of data
 		int what_len_;
@@ -341,10 +341,10 @@ public:
 	//between several containers (mapIdIf, mapIdSender, mapIdIfSender) in ChatTerminalApp::initNetConfigFromXml()
 	//We could to use here a shared pointer or a pointer with reference counting
 	//but there are no such safe pointers in the C++ STL
-	std::vector< networkio::DESTADDR_INFO* > Destinations_;
+	std::vector< std::unique_ptr<networkio::DESTADDR_INFO> > Destinations_;
 
 	// queue of delayed messages
-	std::vector<DELAYED_MSG_DATA*> delayedMsgs_;
+	std::vector<DELAYED_MSG_DATA> delayedMsgs_;
 
 	// Debugging flag; If true then detailed information about commands displayed
 	static bool debug_;
@@ -366,7 +366,7 @@ private:
 	bool fBe_;
 #endif
 	// Id of a command message
-	volatile unsigned int datagramId_;
+	std::atomic<unsigned int> datagramId_;
 
 	/**
 	Sends a command (request, response, or notification) to specified user

@@ -31,13 +31,13 @@ Aleksey Vyatkin, President
 #pragma once
 
 #include <time.h>
-
+#include <chrono> //time functions for delayed messages
 #include <set>
 #include <vector>
 #include <deque>
 #include <string>
 #include <memory>
-#include <functional> // std::function
+#include <functional> // std::function, std::bind
 #include <algorithm> // std::equal std::lexicographical_compare
 #include <cctype> // std::tolower
 #include <cwctype> //std::iswspace
@@ -213,7 +213,7 @@ private:
 	@cPubLen - reference to a variable that receives the size of the pPubBuffer buffer
 	@return - 0 if successful, -1 otherwise
 	*/
-	int getPublicKey(unsigned char*& pPubBuffer, unsigned short& cPubLen);
+	std::unique_ptr<unsigned char[]> getPublicKey(unsigned short& cPubLen);
 
 	/**
 	Processes typed text, sends a command or a message to a channel
@@ -240,12 +240,9 @@ private:
 	must be enclosed with any symbols (for example ' a single quote)
 	@p - parameters string to be processed
 	@second - reference to a variable that receives position to a second parameter
-	@first_buf - reference to a variable that receive a pointer to a created buffer
-	             which contains first parameter;
-	             Returned buffer must be freed by delete[] operator
-	@return - length of first parameter
+	@return - string that contains first parameter
 	*/
-	size_t getSecondParam(const wchar_t* p, const wchar_t*& second, wchar_t*& first_buf);
+	std::wstring&& ChatTerminalApp::getSecondParam(const wchar_t* p, const wchar_t*& second);
 
 	/**
 	Processes command by provided ID and parameters string
@@ -355,7 +352,7 @@ private:
 	// between several containers (mapIdIf, mapIdSender, mapIdIfSender) in initNetConfigFromXml()
 	// We could to use here a shared pointer or a pointer with reference counting
 	// but there are no such safe pointers in the C++ STL
-	std::vector< networkio::Interface* > Interfaces_;
+	std::vector< std::shared_ptr<networkio::Interface> > Interfaces_;
 
 	//Default path to the application configuration file
 	static const wchar_t wszDefConfXmlFile_[];

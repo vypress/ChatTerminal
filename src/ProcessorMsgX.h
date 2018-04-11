@@ -55,9 +55,11 @@ private:
 	@pSignatute - pointer to the signature buffer
 	@cSignatureLen - size of the buffer
 	@pPubKey - pointer to a signer's public key
+	@ptrPubKey - smart pointer to a signer's public key
 	@cPubLen - size of the signer's public key
 	@return - number of bytes copied to the buffer
 	*/
+	bool verifySignature(const char* pMessage, size_t cMessageLen, const unsigned char* pSignatute, size_t cSignatureLen, std::unique_ptr<unsigned char[]> const &ptrPubKey, size_t cPubLen);
 	bool verifySignature(const char* pMessage, size_t cMessageLen, const unsigned char* pSignatute, size_t cSignatureLen, const unsigned char* pPubKey, size_t cPubLen);
 
 	/**

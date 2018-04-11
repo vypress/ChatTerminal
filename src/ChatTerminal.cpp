@@ -18,7 +18,6 @@ For conditions of distribution and use, see copyright notice in ChatTerminal.h
 #include <fstream>
 
 #include <map>
-#include <algorithm>
 
 #include "ChatTerminal.h"
 #include "ProcessorMsgX.h"
@@ -30,12 +29,6 @@ For conditions of distribution and use, see copyright notice in ChatTerminal.h
 #endif // CHATTERM_OS_WINDOWS
 
 using namespace resources;
-
-template <class T> class delete_class_ptr
-{
-public:
-	void operator()(T* p) { delete p; }
-};
 
 //Control access to CHANNEL_INFO::SetOfChannels_ and USER_INFO::SetOfUsers_
 #ifdef CHATTERM_OS_WINDOWS
@@ -373,9 +366,8 @@ bool ChatTerminalApp::parseCommandLine(int argc, char* argv[])
 }
 #endif // CHATTERM_OS_WINDOWS
 
-int ChatTerminalApp::getPublicKey(unsigned char*& pPubBuffer, unsigned short& cPubLen)
+std::unique_ptr<unsigned char[]> ChatTerminalApp::getPublicKey(unsigned short& cPubLen)
 {
-	pPubBuffer = 0;
 	cPubLen = 0;
 
 #ifdef CHATTERM_OS_WINDOWS
@@ -389,29 +381,28 @@ int ChatTerminalApp::getPublicKey(unsigned char*& pPubBuffer, unsigned short& cP
 		{
 			CryptReleaseContext(theApp.hCryptProv_, 0);
 			theApp.hCryptProv_ = 0;
-			return -1;
+			return nullptr;
 		}
 	}
 
+	std::unique_ptr<unsigned char[]> ptrBlob;
 	DWORD dwBlobLen = 0;
-	LPBYTE pbKeyBlob = 0;
-
 	if(CryptExportKey(hKey, NULL, PUBLICKEYBLOB, 0, NULL, &dwBlobLen))
 	{
-		pbKeyBlob = new BYTE[dwBlobLen];
-
-		if(!CryptExportKey(hKey, NULL, PUBLICKEYBLOB, 0, pbKeyBlob, &dwBlobLen))
+		ptrBlob = std::make_unique<unsigned char[]>(dwBlobLen);
+		if(CryptExportKey(hKey, NULL, PUBLICKEYBLOB, 0, ptrBlob.get(), &dwBlobLen))
 		{
-			delete[] pbKeyBlob;
+			cPubLen = (unsigned short)dwBlobLen;
+		}
+		else
+		{
 			dwBlobLen = 0;
+			ptrBlob.reset();
 		}
 	}
 
-	pPubBuffer = pbKeyBlob;
-	cPubLen = (unsigned short)dwBlobLen;
-
 	CryptDestroyKey(hKey);
-	return 0;
+	return ptrBlob;
 #else
 	int result = -1;
 	BIGNUM* e = BN_new();
@@ -471,7 +462,8 @@ void ChatTerminalApp::initMe()
 
 	ptrMe_= std::make_shared<USER_INFO>();
 
-	if(0 != getPublicKey(ptrMe_->pub_key, ptrMe_->pub_key_size))
+	ptrMe_->pub_key = getPublicKey(ptrMe_->pub_key_size);
+	if(!ptrMe_->pub_key)
 	{
 		consoleio::print_line(wszErrKeyPair);
 	}
@@ -634,7 +626,7 @@ int ChatTerminalApp::sendChatLine(const wchar_t* line, size_t line_len)
 	const wchar_t* wszParams = 0;
 	size_t nParamsLen = 0;
 
-	wchar_t* pParamsBuf = 0;
+	std::wstring strParams;
 	size_t pos = 0;
 
 	const wchar_t*& line_seek = line;
@@ -696,11 +688,8 @@ int ChatTerminalApp::sendChatLine(const wchar_t* line, size_t line_len)
 				if(*(line_seek+available_len-1))
 				{
 					//wszParams must be a null terminated string (without trailing white spaces)
-					pParamsBuf = new wchar_t[available_len+1];
-					memcpy(pParamsBuf, line_seek, sizeof(wchar_t)*available_len);
-					pParamsBuf[available_len] = 0;
-
-					wszParams = pParamsBuf;
+					strParams.assign(line_seek, available_len);
+					wszParams = strParams.c_str();
 				}
 				else
 					wszParams = line_seek;
@@ -722,12 +711,10 @@ int ChatTerminalApp::sendChatLine(const wchar_t* line, size_t line_len)
 		result = processCommandId(cmdId, wszParams, nParamsLen);
 	}
 
-	delete[] pParamsBuf;
-
 	return result;
 }
 
-size_t ChatTerminalApp::getSecondParam(const wchar_t* p, const wchar_t*& second, wchar_t*& first_buf)
+std::wstring&& ChatTerminalApp::getSecondParam(const wchar_t* p, const wchar_t*& second)
 {
 	//first parameter must be enclosed by any characters, for example: |pass"word's|, or "passwd", or '"crazy" user', or "user who was born in 1990"
 	wchar_t sep = *p;
@@ -749,14 +736,14 @@ size_t ChatTerminalApp::getSecondParam(const wchar_t* p, const wchar_t*& second,
 	}
 	else
 	{
-		return 0;
+		std::wstring strEmpty;
+		return std::move(strEmpty);
 	}
 
-	first_buf = new wchar_t[first_len+1];
-	wcsncpy_s(first_buf, first_len+1, p, first_len);
-	first_buf[first_len] = 0;
+	std::wstring strFirst;
+	strFirst.assign(p, first_len);
 
-	return first_len;
+	return std::move(strFirst);
 }
 
 int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size_t params_len)
@@ -996,17 +983,15 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 	case FLOOD:
 		{
 			const wchar_t* seconds = 0;
-			wchar_t* to = 0;
+			std::wstring to;
 
 			if(params_len && params && *params)
-				getSecondParam(params, seconds, to);
+				to = getSecondParam(params, seconds);
 
 			int nsecs = 0;
 			if(seconds) nsecs = _wtoi(seconds);
 
-			result = Commands_.FloodZ(to, nsecs);
-
-			delete[] to;
+			result = Commands_.FloodZ(to.c_str(), nsecs);
 		}
 		break;
 
@@ -1083,14 +1068,12 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 	case MASS_TO:
 		{
 			const wchar_t* text = 0;
-			wchar_t* to = 0;
+			std::wstring to;
 
 			if(params_len && params && *params)
-				getSecondParam(params, text, to);
+				to = getSecondParam(params, text);
 
-			result = Commands_.MassTextMsgToE(to, text);
-
-			delete[] to;
+			result = Commands_.MassTextMsgToE(to.c_str(), text);
 		}
 		break;
 
@@ -1131,14 +1114,15 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 	case SJOIN:
 		{
 			std::wstring&& channel = std::wstring();
-			wchar_t* passwd = 0;
 			std::unique_ptr<wchar_t[]> buf(nullptr);
+
+			std::wstring passwd;
 
 			if(params_len && params && *params)
 			{
 				const wchar_t* channel_param = nullptr;
-				size_t passwd_len = getSecondParam(params, channel_param, passwd);
-				if(passwd_len<1)
+				passwd = getSecondParam(params, channel_param);
+				if(passwd.empty())
 				{
 					consoleio::print_line(wszNoPassword);
 					break;
@@ -1149,9 +1133,7 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 				channel = wstrbuf.length() > 0 ? std::move(wstrbuf) : channel_param;
 			}
 
-			result = Commands_.SecureJoinQ5(channel, passwd);
-
-			delete[] passwd;
+			result = Commands_.SecureJoinQ5(channel, passwd.c_str());
 		}
 		break;
 
@@ -1358,10 +1340,10 @@ bool ChatTerminalApp::initDefaultNetConfig()
 	if(!networkio::get_default_netconfig(pi, ps, pr, pd))
 		return false;
 
-	Interfaces_.push_back(pi);
+	Interfaces_.emplace_back(pi);
 	Senders_.emplace_back(ps);
 	Receivers_.emplace_back(pr);
-	Commands_.Destinations_.push_back(pd);
+	Commands_.Destinations_.emplace_back(pd);
 
 	return true;
 }
@@ -1568,7 +1550,7 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 
 	if(S_OK == hr && listLength >= 3) //interfaces and binding
 	{
-		std::map< std::wstring, networkio::Interface*> mapIdIf;//Temporary map Interface string Id -> Interface object pointer
+		std::map< std::wstring, std::shared_ptr<networkio::Interface> > mapIdIf;//Temporary map Interface string Id -> Interface object pointer
 		std::map< std::wstring, std::shared_ptr<networkio::Sender> > mapIdSender;//Temporary map Sender string Id -> Sender object pointer
 		std::map< std::wstring, std::shared_ptr<networkio::Sender> > mapIdIfSender;//Temporary map Interface string Id -> Sender object pointer - it uses by receivers for selecting a default sender
 
@@ -1610,21 +1592,23 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 								HRESULT hr4 = xmlhelper::get_xml_attribute(L"ipver", attributeMap, &varIpVerValue);
 								if((S_OK==hr4) && (0==wcscmp(varIpVerValue.bstrVal, L"6"))) family = AF_INET6;
 
-								networkio::Interface* pIf = 0;
+								std::shared_ptr<networkio::Interface> ptrIf;
 								if((S_OK==hr3) && varNameValue.bstrVal && *varNameValue.bstrVal)
 								{
+									networkio::Interface* pIf = nullptr;
 									networkio::get_interface_by_adapter_name(varNameValue.bstrVal, varAddressValue.bstrVal, family, pIf);
+									ptrIf = std::make_shared<networkio::Interface>(pIf);
 								}
 								else
 									if((S_OK==hr2) && varAddressValue.bstrVal && *varAddressValue.bstrVal)
 									{
-										pIf = new networkio::Interface(varAddressValue.bstrVal, family);
+										ptrIf = std::make_shared<networkio::Interface>(varAddressValue.bstrVal, family);
 									}
 
-								if(pIf)
+								if(ptrIf)
 								{
-									Interfaces_.push_back(pIf);
-									mapIdIf[varIdValue.bstrVal] = pIf;
+									Interfaces_.emplace_back(ptrIf);
+									mapIdIf[varIdValue.bstrVal] = ptrIf;
 								}
 
 								VariantClear(&varIpVerValue);
@@ -1701,12 +1685,12 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 
 										if(S_OK==hr1 && S_OK==hr2)
 										{
-											std::map< std::wstring, networkio::Interface*>::iterator it = mapIdIf.find(varIfValue.bstrVal);
+											std::map< std::wstring, std::shared_ptr<networkio::Interface> >::iterator it = mapIdIf.find(varIfValue.bstrVal);
 											//Interface* pif = mapIdIf[varIfValue.bstrVal];
 
 											if(it != mapIdIf.end())
 											{
-												networkio::Interface* pif = it->second;
+												std::shared_ptr<networkio::Interface> pif = it->second;
 
 												std::shared_ptr<networkio::Sender> ptrS = std::make_shared<networkio::Sender>();
 
@@ -1728,7 +1712,7 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 												mapIdSender[varIdValue.bstrVal] = ptrS;
 												mapIdIfSender[varIfValue.bstrVal] = ptrS;
 
-												Senders_.emplace_back(ptrS);
+												Senders_.push_back(ptrS);
 											}
 										}
 
@@ -1800,7 +1784,7 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 											}
 											else
 											{
-												std::map< std::wstring, std::shared_ptr<networkio::Sender> >::iterator it = mapIdIfSender.find(varSenderValue.bstrVal);
+												std::map< std::wstring, std::shared_ptr<networkio::Sender> >::iterator it = mapIdIfSender.find(varIfValue.bstrVal);
 												if(it != mapIdIfSender.end())
 													s = it->second;
 											}
@@ -1808,22 +1792,22 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 											if(s)
 											{
 												//Interface* pif = mapIdIf[varIfValue.bstrVal];
-												std::map< std::wstring, networkio::Interface*>::iterator it = mapIdIf.find(varIfValue.bstrVal);
+												std::map< std::wstring, std::shared_ptr<networkio::Interface> >::iterator it = mapIdIf.find(varIfValue.bstrVal);
 
 												if(it != mapIdIf.end())
 												{
-													networkio::Interface* pif = it->second;
+													std::shared_ptr<networkio::Interface> ptrIf = it->second;
 
-													std::shared_ptr<networkio::Receiver> rPtr = std::make_unique<networkio::Receiver>(s);
+													std::shared_ptr<networkio::Receiver> ptrRecvr = std::make_shared<networkio::Receiver>(s.get());
 
 													unsigned short port = (unsigned short)_wtoi(varPortValue.bstrVal);
-													if(0 == rPtr->bindToInterface(pif, port, varMcastValue.bstrVal))
+													if(0 == ptrRecvr->bindToInterface(ptrIf, port, varMcastValue.bstrVal))
 													{
-														Receivers_.emplace_back(rPtr);
+														Receivers_.emplace_back(ptrRecvr);
 													}
 													else
 													{
-														wchar_t* wszAddress = pif->getStringAddress(port);
+														wchar_t* wszAddress = ptrIf->getStringAddress(port);
 														consoleio::print_line(wszErrNotBindRcvr, wszAddress);
 														delete[] wszAddress;
 													}
@@ -1897,16 +1881,15 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 
 											if(s)
 											{
-												networkio::DESTADDR_INFO* d = new networkio::DESTADDR_INFO(s.get());
+												std::unique_ptr<networkio::DESTADDR_INFO>&& d = std::make_unique<networkio::DESTADDR_INFO>(s.get());
 
 												unsigned short port = (unsigned short)_wtoi(varPortValue.bstrVal);
 												if(0 == d->bindToAddress(varAddrValue.bstrVal, port))
 												{
-													Commands_.Destinations_.push_back(d);
+													Commands_.Destinations_.emplace_back(d);
 												}
 												else
 												{
-													delete d;
 													consoleio::print_line(wszErrNotBindDestAddr, varAddrValue.bstrVal);
 												}
 											}
@@ -2790,14 +2773,10 @@ void ChatTerminalApp::finalize()
 	leaveNetwork();
 
 	//stop receivers' threads
+
 	Receivers_.clear();
-
-	std::for_each(Commands_.Destinations_.begin(), Commands_.Destinations_.end(), delete_class_ptr<networkio::DESTADDR_INFO>());
 	Commands_.Destinations_.clear();
-
 	Senders_.clear();
-
-	std::for_each(Interfaces_.begin(), Interfaces_.end(), delete_class_ptr<networkio::Interface>());
 	Interfaces_.clear();
 }
 

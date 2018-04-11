@@ -230,7 +230,7 @@ bool CHANNEL_INFO::isMember(const USER_INFO* member) const
 	return it!=users.end();
 }
 
-size_t CHANNEL_INFO::removeMember(const USER_INFO* member)
+bool CHANNEL_INFO::removeMember(const USER_INFO* member)
 {
 	IteratorOfChannelUsers it = std::find_if(users.begin(), users.end(), USER_INFO::Comparator(member));
 	if(it != users.end())
@@ -251,9 +251,11 @@ size_t CHANNEL_INFO::removeMember(const USER_INFO* member)
 			else
 				setActiveChannel((const wchar_t*)nullptr);
 		}
+
+		return true;
 	}
 
-	return users.size();
+	return false;
 }
 
 bool CHANNEL_INFO::isMyChannel(const std::wstring& channel, std::shared_ptr<CHANNEL_INFO>& ptrChInfo)

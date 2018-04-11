@@ -147,6 +147,11 @@ bool ProcessorMsgX::decryptData(unsigned char* data, int size, const CHANNEL_INF
 	return TRUE == CryptDecrypt(pcchinfo->hKey, NULL, TRUE, 0, data, &dwLen);
 }
 
+bool ProcessorMsgX::verifySignature(const char* pMessage, size_t cMessageLen, const unsigned char* pSignatute, size_t cSignatureLen, std::unique_ptr<unsigned char[]> const &ptrPubKey, size_t cPubLen)
+{
+	return verifySignature(pMessage, cMessageLen, pSignatute, cSignatureLen, ptrPubKey.get(), cPubLen);
+}
+
 bool ProcessorMsgX::verifySignature(const char* pMessage, size_t cMessageLen, const unsigned char* pSignatute, size_t cSignatureLen, const unsigned char* pPubKey, size_t cPubLen)
 {
 	HCRYPTKEY hKey = NULL;
@@ -747,7 +752,7 @@ bool ProcessorMsgX::processReplyList1(const char* pmsg, size_t msglen, const net
 	ptrUserInfo->codepage = codepage;
 	ptrUserInfo->color = dwordToByteColor(dwColor);
 	ptrUserInfo->pub_key_size = cPubLen;
-	ptrUserInfo->pub_key = pub_key;
+	ptrUserInfo->pub_key = std::unique_ptr<unsigned char[]>(pub_key);
 	ptrUserInfo->icon = byteIcon;
 
 	networkio::NETADDR_INFO::assign_from_receiver(ptrUserInfo->naddr_info, pcrcvr);
@@ -1089,9 +1094,7 @@ bool ProcessorMsgX::processJoin4(const char* pmsg, size_t msglen, const networki
 
 		if((ver >= ver21) && pub_key && cPubLen)
 		{
-			delete[] ptrUserInfo->pub_key;
-
-			ptrUserInfo->pub_key = pub_key;
+			ptrUserInfo->pub_key = std::unique_ptr<unsigned char[]>(pub_key);
 			ptrUserInfo->pub_key_size = cPubLen;
 
 			//avoid destruction
@@ -1173,18 +1176,38 @@ bool ProcessorMsgX::processLeave5(const char* pmsg, size_t msglen)
 
 	if (!bSignature) return true;
 
-	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
-	if(CHANNEL_INFO::isMyChannel(channel, ptrChInfo))
-		consoleio::print_line(ptrUserInfo->color, false, wszLeftChannel, theApp.getStrTime(), from, channel);
-
-	if(0 == _wcsicmp(channel, CHANNEL_INFO::wszMainChannel))
-		USER_INFO::removeUserFromList(from);
-	else
-		if (ptrChInfo)
+	if (0 == _wcsicmp(channel, CHANNEL_INFO::wszMainChannel))
+	{
+		//We are unable to use here erase with std::remove_if or std::copy_if with std::set containers because of type of CHANNEL_INFO::SetOfChannels_.begin() is const_iterator
+		std::set< std::shared_ptr<CHANNEL_INFO>, CHANNEL_INFO::Less >::iterator it = CHANNEL_INFO::SetOfChannels_.begin();
+		while(it != CHANNEL_INFO::SetOfChannels_.end())
 		{
-			if (ptrChInfo->removeMember(ptrUserInfo.get()) < 1)
-				CHANNEL_INFO::SetOfChannels_.erase(ptrChInfo);
+			if((*it)->removeMember(ptrUserInfo.get()))
+				consoleio::print_line(ptrUserInfo->color, false, wszLeftChannel, theApp.getStrTime(), from, (*it)->name.c_str());
+
+			if((*it)->users.size() < 1)
+				it = CHANNEL_INFO::SetOfChannels_.erase(it);
+			else
+				++it;
 		}
+
+		if (ptrUserInfo != theApp.ptrMe_)
+			USER_INFO::removeUserFromList(from);
+	}
+	else
+	{
+		std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+		if (CHANNEL_INFO::isMyChannel(channel, ptrChInfo) && ptrChInfo)
+		{
+			if (ptrChInfo->removeMember(ptrUserInfo.get()))
+			{
+				consoleio::print_line(ptrUserInfo->color, false, wszLeftChannel, theApp.getStrTime(), from, ptrChInfo->name.c_str());
+
+				if(ptrChInfo->users.size() < 1)
+					CHANNEL_INFO::SetOfChannels_.erase(ptrChInfo);
+			}
+		}
+	}
 
 	return true;
 }
@@ -1961,10 +1984,9 @@ bool ProcessorMsgX::processPingPongP(const char* pmsg, size_t msglen)
 
 		if(cPubLen>0 && pub_key)
 		{
-			delete[] ptrUserInfo->pub_key;
-			ptrUserInfo->pub_key = new unsigned char[cPubLen];
+			ptrUserInfo->pub_key = std::make_unique<unsigned char[]>(cPubLen);
 
-			memcpy(ptrUserInfo->pub_key, pub_key, cPubLen);
+			memcpy(ptrUserInfo->pub_key.get(), pub_key, cPubLen);
 
 			ptrUserInfo->pub_key_size = cPubLen;
 		}
@@ -2634,28 +2656,17 @@ bool ProcessorMsgX::processSecureLeaveQ7(const char* pmsg, size_t msglen)
 			consoleio::print_line(wszDbgSigNotValid);
 	}
 
-	if(bSignature)
+	if (!bSignature) return true;
+
+	std::shared_ptr<CHANNEL_INFO> ptrChInfo;
+	if(CHANNEL_INFO::isMyChannel(channel, ptrChInfo) && ptrChInfo && ptrChInfo->secured)
 	{
-		if(ptrUserInfo == theApp.ptrMe_)
+		if (ptrChInfo->removeMember(ptrUserInfo.get()))
 		{
-			//channel is already removed from CHANNEL_INFO::SetOfChannels_
-			consoleio::print_line(ptrUserInfo->color, false, wszLeftChannel, theApp.getStrTime(), from, channel);
-			return true;
-		}
+			consoleio::print_line(ptrUserInfo->color, false, wszLeftChannel, theApp.getStrTime(), from, ptrChInfo->name.c_str());
 
-		std::shared_ptr<CHANNEL_INFO> ptrChInfo;
-		if(CHANNEL_INFO::isMyChannel(channel, ptrChInfo))
-			consoleio::print_line(ptrUserInfo->color, false, wszLeftChannel, theApp.getStrTime(), from, channel);
-
-		if(ptrChInfo && ptrChInfo->secured)
-		{
-			if(0 == _wcsicmp(channel, CHANNEL_INFO::wszMainChannel))
-				USER_INFO::removeUserFromList(from);
-			else
-			{
-				if (ptrChInfo->removeMember(ptrUserInfo.get()) < 1)
-					CHANNEL_INFO::SetOfChannels_.erase(ptrChInfo);
-			}
+			if (ptrChInfo->users.size() < 1)
+				CHANNEL_INFO::SetOfChannels_.erase(ptrChInfo);
 		}
 	}
 

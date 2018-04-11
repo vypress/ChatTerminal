@@ -1218,7 +1218,7 @@ namespace networkio
 			delete[] wszAddress;
 		}
 
-		prref = new Receiver(std::shared_ptr<networkio::Sender>(psref));
+		prref = new Receiver(psref);
 		port = DEFAULT_PORT;
 		int bind_result = prref->bindToInterface(piref, port, wszMcastAddress);
 		wchar_t* wszIfAddress = piref->getStringAddress(port);
@@ -1336,9 +1336,9 @@ namespace networkio
 		return sockaddr_to_string(pai_->ai_addr, pai_->ai_addrlen);
 	}
 
-	int Sender::bindToInterface(const Interface* pif, unsigned short port, DWORD dwTTL)
+	int Sender::bindToInterface(const std::shared_ptr<Interface> pif, unsigned short port, DWORD dwTTL)
 	{
-		pif_ = pif;
+		pif_ = std::shared_ptr<Interface>(pif);
 		addrinfo* const& pai = pif->pai_;
 
 		// Create a SOCKET for sending UDP datagrams
@@ -1480,16 +1480,16 @@ namespace networkio
 		return result;
 	}
 
-	int Receiver::bindToInterface(const Interface* pif, unsigned short port, const wchar_t* wszMcastGroups)
+	int Receiver::bindToInterface(std::shared_ptr<Interface>& ptrIf, unsigned short port, const wchar_t* wszMcastGroups)
 	{
-		addrinfo* const& pai = pif->pai_;
+		addrinfo* const& pai = ptrIf->pai_;
 		int result = 0;
 
-		if(ptrSender_ && (htons(port) == ptrSender_->port_))
+		if(nullptr!=pcSender_ && (htons(port) == pcSender_->port_))
 		{
 			//Using the same socket for receiving and sending is not good idea
 			//I'm not sure that sendto() and recvrfom() are thread safe
-			sock_ = ptrSender_->sock_;
+			sock_ = pcSender_->sock_;
 
 			/* It is not necessary
 			switch(pai->ai_family)
@@ -1581,7 +1581,7 @@ namespace networkio
 
 		if(0 == result)
 		{
-			pif_ = pif;
+			ptrIf_ = std::move(ptrIf);
 
 			//get bound port number to from_addr_ for NETADDR_INFO::assign_from_receiver(ptrMe_->naddr_info, Receivers_.front());
 			//in ChatTerminalApp::run()
@@ -1683,7 +1683,7 @@ namespace networkio
 								const sockaddr_in6* pa = reinterpret_cast<const sockaddr_in6*>(pres_addr->ai_addr);
 
 								memcpy(&mreq.ipv6mr_multiaddr, &pa->sin6_addr, sizeof(mreq.ipv6mr_multiaddr));
-								mreq.ipv6mr_interface = pif_->ipv6_if_index_;
+								mreq.ipv6mr_interface = ptrIf_->ipv6_if_index_;
 
 								result = setsockopt (sock_, IPPROTO_IPV6, IPV6_JOIN_GROUP, (char*)&mreq, sizeof (mreq));
 								freeaddrinfo(pres_addr);

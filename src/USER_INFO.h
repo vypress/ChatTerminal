@@ -67,19 +67,15 @@ public:
 		bool operator()(USER_INFO* const& _xVal, USER_INFO* const& _yVal) const
 		{
 			if(nullptr == _xVal) return true;
-			if(nullptr == _xVal->nick_) return true;
 			if(nullptr == _yVal) return false;
-			if(nullptr == _yVal->nick_) return false;
-			return (_wcsicmp(_xVal->nick_, _yVal->nick_)<0);
+			return std::lexicographical_compare(_xVal->nick_.begin(), _xVal->nick_.end(), _yVal->nick_.begin(), _yVal->nick_.end(), [](wchar_t c1, wchar_t c2) {return std::tolower(c1) < std::tolower(c2); });
 		}
 
 		bool operator()(const std::shared_ptr<USER_INFO>& _xVal, const std::shared_ptr<USER_INFO>& _yVal) const
 		{
 			if (nullptr == _xVal) return true;
-			if (nullptr == _xVal->nick_) return true;
 			if (nullptr == _yVal) return false;
-			if (nullptr == _yVal->nick_) return false;
-			return (_wcsicmp(_xVal->nick_, _yVal->nick_)<0);
+			return std::lexicographical_compare(_xVal->nick_.begin(), _xVal->nick_.end(), _yVal->nick_.begin(), _yVal->nick_.end(), [](wchar_t c1, wchar_t c2) {return std::tolower(c1) < std::tolower(c2); });
 		}
 	};
 
@@ -157,7 +153,8 @@ public:
 	unsigned short pub_key_size;
 
 	// Buffer that contains user's public key
-	unsigned char* pub_key;
+	std::unique_ptr<unsigned char[]> pub_key;
+	//unsigned char* pub_key;
 
 	// Time when the latest message from the user was received
 	time_t last_activity;
@@ -192,14 +189,12 @@ public:
 		wnd_state('1'),
 		icon(0),
 		pub_key_size(0),
-		pub_key(0),
 		last_activity(0),
 		flood(0),
 		pings(0),
 		last_ping(0),
 		beeps(0),
-		infos(0),
-		nick_(0)
+		infos(0)
 	{
 #ifdef CHATTERM_OS_WINDOWS
 		UuidCreateNil(&uuid);
@@ -213,23 +208,13 @@ public:
 	*/
 	void freeFields()
 	{
-		if(nick_)
-		{
-			delete[] nick_;
-			nick_ = 0;
-		}
+		nick_.clear();
 
 		if(pub_key)
 		{
-			delete[] pub_key;
-			pub_key = 0;
+			pub_key.reset();
 			pub_key_size = 0;
 		}
-	}
-
-	~USER_INFO()
-	{
-		freeFields();
 	}
 
 	/**
@@ -243,32 +228,28 @@ public:
 	{
 		if (nick_ == nick) return true;
 
-		if (nullptr == nick || nullptr == nick_) return false;
+		if (nullptr == nick) return false;
 
-		return 0 == _wcsicmp(nick_, nick);
+		return 0 == _wcsicmp(nick_.c_str(), nick);
 	}
 
 	/**
 	Accessors to the nick_ member
 	*/
-	#ifdef CHATTERM_OS_WINDOWS
-	const wchar_t* const& getNick() const;
-	#else
-	//returning const wchar_t* const& doesn't work with gcc's -O optimizations
-	const wchar_t* const getNick() const;
-	#endif // CHATTERM_OS_WINDOWS
+	const wchar_t* getNick() const
+	{
+		if (!nick_.empty()) return nick_.c_str();
+		return NullNick_;
+	}
 
 	bool setNick(const wchar_t* new_nick, size_t len)
 	{
 		if(!new_nick || !*new_nick) return false;
 		if(len<1) return false;
 
-		delete[] nick_;
-
 		if(len > MaxNickLength) len = MaxNickLength;
 
-		nick_ = new wchar_t[len+1];
-		wcsncpy_s(nick_, len+1, new_nick, len);
+		nick_.assign(new_nick, len);
 
 		checkNickName(nick_);
 		return true;
@@ -277,8 +258,6 @@ public:
 	bool setNick(wchar_t*& new_nick)
 	{
 		if(!new_nick || !*new_nick) return false;
-
-		delete[] nick_;
 
 		nick_ = new_nick;
 
@@ -340,8 +319,9 @@ private:
 	Replaces all disallowed characters in the nickname to underline _
 	@str - pointer to nickname buffer
 	*/
-	void checkNickName(wchar_t* str)
+	void checkNickName(std::wstring& str)
 	{
+		/*
 		if(!str) return;
 
 		const wchar_t wrongs[]=L"\\/:*?\"<>|\r\n\t";
@@ -351,8 +331,12 @@ private:
 				*str=L'_';
 			str++;
 		}
+		*/
+		//std::replace_if(str.begin(), str.end(), std::bind(std::less<int>(), std::placeholders::_1, 5), L'_');
+		std::replace_if(str.begin(), str.end(), [](wchar_t ch) { return wcschr(L"\\/:*?\"<>|\r\n\t", ch) != 0; }, L'_');
 	}
 
 	// User's nickname
-	wchar_t* nick_;
+	//wchar_t* nick_;
+	std::wstring nick_;
 };

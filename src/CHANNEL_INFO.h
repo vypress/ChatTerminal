@@ -45,7 +45,7 @@ public:
 		bool operator()(std::shared_ptr<CHANNEL_INFO> const ptrChInfo) const
 		{
 			if(!ptrChInfo) return false;
-			return std::equal(_str.begin(), _str.end(), ptrChInfo->name.begin(), [](wchar_t c1, wchar_t c2) {return std::tolower(c1) == std::tolower(c2); });
+			return std::equal(_str.begin(), _str.end(), ptrChInfo->name.begin(), ptrChInfo->name.end(), [](wchar_t c1, wchar_t c2) {return std::tolower(c1) == std::tolower(c2); });
 		}
 	};
 
@@ -103,7 +103,7 @@ public:
 	@return - true if adding or deleting was successful or if user is joined to a channel, false otherwise
 	*/
 	bool addMember(const USER_INFO* member);
-	size_t removeMember(const USER_INFO* member);
+	bool removeMember(const USER_INFO* member);
 	bool isMember(const USER_INFO* member) const;
 
 	/**

@@ -838,15 +838,3 @@ bool USER_INFO::loadFromXml(const wchar_t* file_path)
 	return true;
 }
 #endif // CHATTERM_OS_WINDOWS
-
-//#pragma GCC diagnostic warning "-w"
-#ifdef CHATTERM_OS_WINDOWS
-const wchar_t* const& USER_INFO::getNick() const
-#else
-const wchar_t* const USER_INFO::getNick() const
-#endif // CHATTERM_OS_WINDOWS
-{
-	if(nick_) return nick_;//GCC warning: returning reference to temporary
-	return NullNick_;//GCC warning: returning reference to temporary
-}
-//#pragma GCC diagnostic pop

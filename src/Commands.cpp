@@ -54,11 +54,6 @@ Commands::Commands() :
 
 Commands::~Commands(void)
 {
-	//clearing delayed messages
-	std::vector<DELAYED_MSG_DATA*>::iterator it = delayedMsgs_.begin();
-	std::vector<DELAYED_MSG_DATA*>::iterator end = delayedMsgs_.end();
-	while(it!=end) delete *it++;
-
 	DelayedMsgsMonitor::Delete();
 	DatagramIdMonitor::Delete();
 }
@@ -276,8 +271,8 @@ int Commands::sendBroadcastMsg(const char* buf, int len)
 	for_each(BroadcastAddrs_.begin(), BroadcastAddrs_.end(), d);
 	*/
 
-	std::vector< networkio::DESTADDR_INFO* > ::const_iterator it = Destinations_.begin();
-	std::vector< networkio::DESTADDR_INFO* > ::const_iterator end = Destinations_.end();
+	std::vector< std::unique_ptr<networkio::DESTADDR_INFO>> ::const_iterator it = Destinations_.begin();
+	std::vector< std::unique_ptr<networkio::DESTADDR_INFO>> ::const_iterator end = Destinations_.end();
 
 	bool result = true;
 	while(it!=end)
@@ -303,8 +298,8 @@ void Commands::sendDelayedMsgs()
 {
 	DelayedMsgsMonitor DELAYED_MSGS_MONITOR;
 
-	std::vector<DELAYED_MSG_DATA*>::iterator it = delayedMsgs_.begin();
-	std::vector<DELAYED_MSG_DATA*>::iterator end = delayedMsgs_.end();
+	std::vector<DELAYED_MSG_DATA>::iterator it = delayedMsgs_.begin();
+	std::vector<DELAYED_MSG_DATA>::iterator end = delayedMsgs_.end();
 
 	bool fClearAll = true;
 #ifdef CHATTERM_OS_WINDOWS
@@ -316,7 +311,7 @@ void Commands::sendDelayedMsgs()
 
 	while(it!=end)
 	{
-		DELAYED_MSG_DATA* pData = *it;
+		const DELAYED_MSG_DATA& pData = *it;
 
 		if(pData)
 		{
@@ -534,9 +529,8 @@ int Commands::createMessageFields(char*& pMessage, char chType, MSG_FIELD* pFiel
 					seek+=nSignatureLength;
 				}
 				break;
-
-                        default:
-                                break;
+			default:
+				break;
 		}
 	}
 
@@ -719,13 +713,15 @@ int Commands::SecureLeaveQ7(const std::wstring& channel)
 
 	send_err = SecureLeaveQ7(ptrChInfo.get());
 
+	/*
 	if(0 == send_err)
 	{
-		if (ptrChInfo->removeMember(theApp.ptrMe_.get()) < 1)
+		if (ptrChInfo->removeMember(theApp.ptrMe_.get()) && ptrChInfo->users.size() < 1)
 			CHANNEL_INFO::SetOfChannels_.erase(ptrChInfo);
 
-		consoleio::print_line(NULL);
+		consoleio::print_line(nullptr);
 	}
+	*/
 
 	return send_err;
 }
@@ -956,7 +952,7 @@ int Commands::ReplyList1(const USER_INFO* pinfo, int delay)
 	fields1[12].data.bytes_ = pNullBytes;
 	fields1[13].data.bytes_ = pNullBytes;
 	fields1[15].data.bytes_ = (unsigned char*)&theApp.ptrMe_->pub_key_size;
-	fields1[16].data.bytes_ = theApp.ptrMe_->pub_key;
+	fields1[16].data.bytes_ = theApp.ptrMe_->pub_key.get();
 	fields1[17].data.bytes_ = &theApp.ptrMe_->icon;
 
 	char* pMessage = 0;
@@ -1217,7 +1213,7 @@ int Commands::Join4(const std::wstring& channel)
 		fields4Main[10].data.bytes_ = pNullBytes;
 		fields4Main[11].data.bytes_ = pNullBytes;
 		fields4Main[13].data.bytes_ = (unsigned char*)&theApp.ptrMe_->pub_key_size;
-		fields4Main[14].data.bytes_ = theApp.ptrMe_->pub_key;
+		fields4Main[14].data.bytes_ = theApp.ptrMe_->pub_key.get();
 		fields4Main[15].data.bytes_ = &theApp.ptrMe_->icon;
 
 		char* pMessage = 0;
@@ -1602,7 +1598,7 @@ int Commands::PingPongP(const USER_INFO* pinfo, bool fPong)
 	fieldsP[0].data.ch_ = fPong ? '1' : '0';
 	fieldsP[4].data.bytes_ = pNullBytes;
 	fieldsP[6].data.bytes_ = (unsigned char*)&theApp.ptrMe_->pub_key_size;
-	fieldsP[7].data.bytes_ = theApp.ptrMe_->pub_key;
+	fieldsP[7].data.bytes_ = theApp.ptrMe_->pub_key.get();
 
 	char* pMessage = 0;
 	int msg_size = createMessageFields(pMessage, 'P', fieldsP, _ARRAYSIZE(fieldsP));
@@ -1785,13 +1781,15 @@ int Commands::Leave5(const std::wstring& channel)
 
 	send_err = Leave5(ptrChInfo.get());
 
-	if(0 == send_err)
+	/*
+	if (0 == send_err)
 	{
-		if (ptrChInfo->removeMember(theApp.ptrMe_.get()) < 1)
+		if (ptrChInfo->removeMember(theApp.ptrMe_.get()) && ptrChInfo->users.size()< 1)
 			CHANNEL_INFO::SetOfChannels_.erase(ptrChInfo);
 
-		consoleio::print_line(NULL);
+		consoleio::print_line(nullptr);
 	}
+	*/
 
 	return send_err;
 }
