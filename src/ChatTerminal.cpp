@@ -718,10 +718,11 @@ std::wstring&& ChatTerminalApp::getSecondParam(const wchar_t* p, const wchar_t*&
 {
 	//first parameter must be enclosed by any characters, for example: |pass"word's|, or "passwd", or '"crazy" user', or "user who was born in 1990"
 	wchar_t sep = *p;
+	std::wstring strFirst;
 
 	if(0 == *p || (sep==*(p+1)))
 	{
-		return 0;
+		return std::move(strFirst);
 	}
 
 	size_t first_len = 0;
@@ -740,7 +741,6 @@ std::wstring&& ChatTerminalApp::getSecondParam(const wchar_t* p, const wchar_t*&
 		return std::move(strEmpty);
 	}
 
-	std::wstring strFirst;
 	strFirst.assign(p, first_len);
 
 	return std::move(strFirst);
@@ -1332,18 +1332,16 @@ bool ChatTerminalApp::initConfig()
 
 bool ChatTerminalApp::initDefaultNetConfig()
 {
-	networkio::Interface* pi = 0;
-	networkio::Sender* ps = 0;
-	networkio::Receiver* pr = 0;
-	networkio::DESTADDR_INFO* pd = 0;
+	std::shared_ptr<networkio::Sender> ps;
+	std::shared_ptr<networkio::Receiver> pr;
+	std::unique_ptr<networkio::DESTADDR_INFO> pd;
 
-	if(!networkio::get_default_netconfig(pi, ps, pr, pd))
+	if(!networkio::get_default_netconfig(ps, pr, pd))
 		return false;
 
-	Interfaces_.emplace_back(pi);
 	Senders_.emplace_back(ps);
 	Receivers_.emplace_back(pr);
-	Commands_.Destinations_.emplace_back(pd);
+	Commands_.Destinations_.emplace_back(std::move(pd));
 
 	return true;
 }
@@ -1597,7 +1595,7 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 								{
 									networkio::Interface* pIf = nullptr;
 									networkio::get_interface_by_adapter_name(varNameValue.bstrVal, varAddressValue.bstrVal, family, pIf);
-									ptrIf = std::make_shared<networkio::Interface>(pIf);
+									ptrIf.reset(pIf);
 								}
 								else
 									if((S_OK==hr2) && varAddressValue.bstrVal && *varAddressValue.bstrVal)
@@ -1607,7 +1605,6 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 
 								if(ptrIf)
 								{
-									Interfaces_.emplace_back(ptrIf);
 									mapIdIf[varIdValue.bstrVal] = ptrIf;
 								}
 
@@ -1690,7 +1687,7 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 
 											if(it != mapIdIf.end())
 											{
-												std::shared_ptr<networkio::Interface> pif = it->second;
+												const std::shared_ptr<networkio::Interface>& pif = it->second;
 
 												std::shared_ptr<networkio::Sender> ptrS = std::make_shared<networkio::Sender>();
 
@@ -1881,12 +1878,12 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 
 											if(s)
 											{
-												std::unique_ptr<networkio::DESTADDR_INFO>&& d = std::make_unique<networkio::DESTADDR_INFO>(s.get());
+												std::unique_ptr<networkio::DESTADDR_INFO> d = std::make_unique<networkio::DESTADDR_INFO>(s.get());
 
 												unsigned short port = (unsigned short)_wtoi(varPortValue.bstrVal);
 												if(0 == d->bindToAddress(varAddrValue.bstrVal, port))
 												{
-													Commands_.Destinations_.emplace_back(d);
+													Commands_.Destinations_.emplace_back(std::move(d));
 												}
 												else
 												{
@@ -2256,7 +2253,6 @@ bool ChatTerminalApp::initNetConfigFromXml(xmlNodePtr network_nodePtr)
 
 			if(pIf)
 			{
-				Interfaces_.push_back(pIf);
 				mapIdIf[reinterpret_cast<const char*>(xszIdValue)] = pIf;
 			}
 
@@ -2777,7 +2773,6 @@ void ChatTerminalApp::finalize()
 	Receivers_.clear();
 	Commands_.Destinations_.clear();
 	Senders_.clear();
-	Interfaces_.clear();
 }
 
 int ChatTerminalApp::run()

@@ -55,17 +55,12 @@ namespace networkio
 
 	/**
 	Suggests default network configuration for communications.
-	@piref - reference to a pointer that receives the interface object;
-	         The object must be freed using delete operator
 	@psref - reference to a pointer that receives the sender object;
-	         The object must be freed using delete operator
 	@prref - reference to a pointer that receives the receiver object;
-	         The object must be freed using delete operator
 	@pdref - reference to a pointer that receives the destination address object;
-	         The object must be freed using delete operator
 	@return - true is successful, false otherwise
 	*/
-	bool get_default_netconfig(Interface*& piref, Sender*& psref, Receiver*& prref, DESTADDR_INFO*& pdref);
+	bool get_default_netconfig(std::shared_ptr<Sender>& psref, std::shared_ptr<Receiver>& prref, std::unique_ptr<DESTADDR_INFO>& pdref);
 
 	/**
 	Class describes an object which represents a network interface
@@ -120,7 +115,7 @@ namespace networkio
 		/**
 		Binds socket to specified network interface, port; Sets necessary socket options
 		*/
-		int bindToInterface(const std::shared_ptr<Interface>, unsigned short port, DWORD dwTTL);
+		int bindToInterface(const std::shared_ptr<Interface>&, unsigned short port, DWORD dwTTL);
 
 		int sendTo(const sockaddr* paddr, const char* buf, int len) const;
 
@@ -134,7 +129,7 @@ namespace networkio
 	private:
 		SOCKET sock_;
 		unsigned short port_;
-		const std::shared_ptr<Interface> pif_;
+		std::shared_ptr<Interface> pif_;
 
 	friend class Receiver;
 	};
@@ -383,12 +378,10 @@ namespace networkio
 	Struct describes an object which is used for sending broadcast
 	and multicast UDP datagrams by specified sender object
 	*/
-	class DESTADDR_INFO
+	struct DESTADDR_INFO
 	{
-	public:
-		DESTADDR_INFO(const Sender* psender) : psender_(psender), psaddr_(0)
+		DESTADDR_INFO(const Sender* psender) : psender_(psender), psaddr_(reinterpret_cast<sockaddr*>(new sockaddr_in6))
 		{
-			psaddr_ = reinterpret_cast<sockaddr*>(new sockaddr_in6);
 			memset(psaddr_, 0x00, sizeof(sockaddr_in6));
 		}
 

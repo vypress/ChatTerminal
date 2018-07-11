@@ -347,13 +347,6 @@ private:
 	// Maximum attempts to reach a user
 	static const int maxUserPings_ = 3;
 
-	// Array of available network interfaces
-	// We do not use std::auto_ptr<> because pointers to Sender are temporary shared
-	// between several containers (mapIdIf, mapIdSender, mapIdIfSender) in initNetConfigFromXml()
-	// We could to use here a shared pointer or a pointer with reference counting
-	// but there are no such safe pointers in the C++ STL
-	std::vector< std::shared_ptr<networkio::Interface> > Interfaces_;
-
 	//Default path to the application configuration file
 	static const wchar_t wszDefConfXmlFile_[];
 

@@ -1075,7 +1075,7 @@ namespace networkio
 	}
 #endif // CHATTERM_OS_WINDOWS
 
-	bool get_default_netconfig(Interface*& piref, Sender*& psref, Receiver*& prref, DESTADDR_INFO*& pdref)
+	bool get_default_netconfig(std::shared_ptr<Sender>& psref, std::shared_ptr<Receiver>& prref, std::unique_ptr<DESTADDR_INFO>& pdref)
 	{
 		struct addrinfo hints = {0};
 		hints.ai_flags = AI_CANONNAME;
@@ -1200,14 +1200,14 @@ namespace networkio
 			}
 
 		if(!ai_next) return false;
-		
-		piref = new Interface(ai_next, if6index);
+
+		std::shared_ptr<Interface> piref = std::make_shared<Interface>(ai_next, if6index);
 
 		const wchar_t* wszMcastAddress =  ai_next->ai_family == AF_INET6 ? DEFAULT_MCAST_ADDR_V6 : DEFAULT_MCAST_ADDR;
 		
 		freeaddrinfo(pres_addr);
 
-		psref = new Sender();
+		psref = std::make_shared<Sender>();
 		//unsigned short port = DEFAULT_PORT;
 		unsigned short port = 0;
 
@@ -1218,7 +1218,7 @@ namespace networkio
 			delete[] wszAddress;
 		}
 
-		prref = new Receiver(psref);
+		prref = std::make_shared<Receiver>(psref.get());
 		port = DEFAULT_PORT;
 		int bind_result = prref->bindToInterface(piref, port, wszMcastAddress);
 		wchar_t* wszIfAddress = piref->getStringAddress(port);
@@ -1226,7 +1226,7 @@ namespace networkio
 		if(0 != bind_result)
 			consoleio::print_line(resources::wszErrNotBindRcvr, wszIfAddress);
 
-		pdref = new DESTADDR_INFO(psref);
+		pdref = std::make_unique<DESTADDR_INFO>(psref.get());
 
 		if(0 != pdref->bindToAddress(wszMcastAddress, port))
 			consoleio::print_line(resources::wszErrNotBindDestAddr, wszMcastAddress);
@@ -1336,10 +1336,11 @@ namespace networkio
 		return sockaddr_to_string(pai_->ai_addr, pai_->ai_addrlen);
 	}
 
-	int Sender::bindToInterface(const std::shared_ptr<Interface> pif, unsigned short port, DWORD dwTTL)
+	int Sender::bindToInterface(const std::shared_ptr<Interface>& refPtrIf, unsigned short port, DWORD dwTTL)
 	{
-		pif_ = std::shared_ptr<Interface>(pif);
-		addrinfo* const& pai = pif->pai_;
+		pif_ = refPtrIf;
+
+		addrinfo* const& pai = refPtrIf->pai_;
 
 		// Create a SOCKET for sending UDP datagrams
 		sock_ = socket(pai->ai_family, pai->ai_socktype, pai->ai_protocol);
@@ -1581,7 +1582,7 @@ namespace networkio
 
 		if(0 == result)
 		{
-			ptrIf_ = std::move(ptrIf);
+			ptrIf_ = ptrIf;
 
 			//get bound port number to from_addr_ for NETADDR_INFO::assign_from_receiver(ptrMe_->naddr_info, Receivers_.front());
 			//in ChatTerminalApp::run()
@@ -1654,7 +1655,7 @@ namespace networkio
 							// Join the multicast group from which to receive datagrams.
 							mreq.imr_multiaddr.s_addr = inet_addr(mcast_addr.c_str());
 
-							const sockaddr_in* psin = reinterpret_cast<const sockaddr_in*>(pif_->pai_->ai_addr);
+							const sockaddr_in* psin = reinterpret_cast<const sockaddr_in*>(ptrIf_->pai_->ai_addr);
 #ifdef CHATTERM_OS_WINDOWS
 							mreq.imr_interface.S_un.S_addr = psin->sin_addr.S_un.S_addr;
 #else
@@ -1991,9 +1992,9 @@ namespace networkio
 			consoleio::print_line_selected(resources::wszDbgPacket, len, theApp.getStrTime(true));
 
 			wchar_t* wszFromAddr = sockaddr_to_string(reinterpret_cast<const sockaddr*>(&from_addr_), sizeof(sockaddr_in6));
-			wchar_t* wszToAddr = sockaddr_to_string(pif_->pai_->ai_addr, pif_->pai_->ai_addrlen);
+			wchar_t* wszToAddr = sockaddr_to_string(ptrIf_->pai_->ai_addr, ptrIf_->pai_->ai_addrlen);
 
-			if(pif_->pai_->ai_family == AF_INET6)
+			if(ptrIf_->pai_->ai_family == AF_INET6)
 				consoleio::print_line_selected(resources::wszDbgPacketRcvdFromTo6, wszFromAddr, wszToAddr, ntohs(port_));
 			else
 				consoleio::print_line_selected(resources::wszDbgPacketRcvdFromTo, wszFromAddr, wszToAddr, ntohs(port_));

@@ -366,7 +366,7 @@ private:
 	bool fBe_;
 #endif
 	// Id of a command message
-	std::atomic<unsigned int> datagramId_;
+	unsigned int datagramId_;
 
 	/**
 	Sends a command (request, response, or notification) to specified user

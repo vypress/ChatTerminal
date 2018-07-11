@@ -311,32 +311,31 @@ void Commands::sendDelayedMsgs()
 
 	while(it!=end)
 	{
-		const DELAYED_MSG_DATA& pData = *it;
+		DELAYED_MSG_DATA& pData = *it;
 
-		if(pData)
-		{
 #ifdef CHATTERM_OS_WINDOWS
-			if(cur_tick>pData->when_)
+		if(cur_tick>pData.when_)
 #else
-			if(now.tv_sec>pData->when_.tv_sec || now.tv_usec>pData->when_.tv_usec)
+		if(now.tv_sec>pData->when_.tv_sec || now.tv_usec>pData->when_.tv_usec)
 #endif // CHATTERM_OS_WINDOWS
+		{
+			if (pData.when_ > 0)
 			{
 #ifdef _DEBUG
 #ifdef CHATTERM_OS_WINDOWS
-				consoleio::print_line(L"Send delayed message %d -> %d", pData->when_, cur_tick);
+				consoleio::print_line(L"Send delayed message %d -> %d", pData.when_, cur_tick);
 #else
 				consoleio::print_line(L"Send delayed message %d:%d -> %d:%d", pData->when_.tv_sec, pData->when_.tv_usec, now.tv_sec, now.tv_usec);
 #endif // CHATTERM_OS_WINDOWS
 #endif
-				sendMsgToAddr(pData->what_, pData->what_len_, (const sockaddr*)&pData->to_, pData->by_);
-				delete pData;
-				*it = 0;
+				sendMsgToAddr(pData.what_.get(), pData.what_len_, (const sockaddr*)&pData.to_, pData.by_);
+				pData.when_ = 0;
 			}
-			else
-				fClearAll = false;
-
-			++it;
 		}
+		else
+			fClearAll = false;
+
+		++it;
 	}
 
 	if(fClearAll)
@@ -350,11 +349,11 @@ int Commands::sendMsgTo(const char* buf, int len, const USER_INFO* pinfo, int de
 		{//scope for DelayedMsgsMonitor
 			DelayedMsgsMonitor DELAYED_MSGS_MONITOR;
 
-			DELAYED_MSG_DATA* pData = new DELAYED_MSG_DATA(buf, len, pinfo, delay);
-			delayedMsgs_.push_back(pData);
+			//DELAYED_MSG_DATA* pData = new DELAYED_MSG_DATA(buf, len, pinfo, delay);
+			delayedMsgs_.emplace_back(buf, len, pinfo, delay);
 #ifdef _DEBUG
 #ifdef CHATTERM_OS_WINDOWS
-			consoleio::print_line(L"Add delayed message to the queue %d", pData->when_);
+			consoleio::print_line(L"Add delayed message to the queue %d", delayedMsgs_.back().when_);
 #else
 			struct timeval now={0};
 			gettimeofday(&now, NULL);
