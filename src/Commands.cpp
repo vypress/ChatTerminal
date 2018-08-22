@@ -104,7 +104,7 @@ bool Commands::getPasswordHash(const wchar_t* pass, size_t len, unsigned char* h
 	return bResult;
 }
 
-int Commands::signMessage(const char* pMessage, size_t cMessageLen, unsigned char* pSignatute, size_t cSignatureLen)
+int Commands::signMessage(const char* ptrMessage, size_t cMessageLen, unsigned char* pSignatute, size_t cSignatureLen)
 {
 	int nErr = 0;
 	HCRYPTHASH hHash = 0;
@@ -117,7 +117,7 @@ int Commands::signMessage(const char* pMessage, size_t cMessageLen, unsigned cha
 			throw -1;
 		}
 
-		if(!CryptHashData(hHash, (const BYTE*)pMessage, static_cast<DWORD>(cMessageLen), 0))
+		if(!CryptHashData(hHash, (const BYTE*)ptrMessage, static_cast<DWORD>(cMessageLen), 0))
 		{
 			throw -1;
 		}
@@ -194,13 +194,13 @@ bool Commands::getPasswordHash(const wchar_t* pass, size_t len, unsigned char* h
 	return false;
 }
 
-int Commands::signMessage(const char* pMessage, size_t cMessageLen, unsigned char* pSignatute, size_t cSignatureLen)
+int Commands::signMessage(const char* ptrMessage, size_t cMessageLen, unsigned char* pSignatute, size_t cSignatureLen)
 {
 	unsigned int siglen = RSA_size(theApp.pRSA_);
 	if(cSignatureLen < siglen) return -1;
 
 	unsigned char md[MD5_DIGEST_LENGTH] = {0};
-	MD5(reinterpret_cast<const unsigned char*>(pMessage), cMessageLen, md);
+	MD5(reinterpret_cast<const unsigned char*>(ptrMessage), cMessageLen, md);
 
 	int result = RSA_sign(NID_md5, md, MD5_DIGEST_LENGTH, pSignatute, &siglen, theApp.pRSA_);
 
@@ -280,9 +280,8 @@ int Commands::sendBroadcastMsg(const char* buf, int len)
 		int send_result = (*it)->psender_->sendTo((*it)->psaddr_, buf, len);
 		if(send_result != len)
 		{
-			wchar_t* wszToAddr = networkio::sockaddr_to_string((*it)->psaddr_, sizeof(sockaddr_in6));
-			consoleio::print_line( wszUnableToSendMsg, wszToAddr);
-			delete[] wszToAddr;
+			std::wstring wszToAddr = networkio::sockaddr_to_string((*it)->psaddr_, sizeof(sockaddr_in6));
+			consoleio::print_line( wszUnableToSendMsg, wszToAddr.c_str());
 
 			result = false;
 		}
@@ -376,9 +375,8 @@ int Commands::sendMsgToAddr(const char* buf, int len, const sockaddr* paddr, con
 	int result = psndr->sendTo(paddr, buf, len);
 	if(result != len)
 	{
-		wchar_t* wszToAddr = networkio::sockaddr_to_string(paddr, sizeof(sockaddr_in6));
-		consoleio::print_line( wszUnableToSendMsg, wszToAddr);
-		delete[] wszToAddr;
+		std::wstring wszToAddr = networkio::sockaddr_to_string(paddr, sizeof(sockaddr_in6));
+		consoleio::print_line( wszUnableToSendMsg, wszToAddr.c_str());
 	}
 	return result;
 }
@@ -398,7 +396,7 @@ DWORD Commands::byteToDwordColor(unsigned char color)
 	return dwColor;
 }
 
-int Commands::createMessageFields(char*& pMessage, char chType, MSG_FIELD* pFields, int nFields)
+std::tuple<std::unique_ptr<char[]>, int> Commands::createMessageFields(char chType, MSG_FIELD* pFields, int nFields)
 {
 	const size_t nSignatureLength = 128;//0x80;
 	const size_t nRequestOffset = 10;//10 - 'X'+DatagramID
@@ -424,25 +422,25 @@ int Commands::createMessageFields(char*& pMessage, char chType, MSG_FIELD* pFiel
 		}
 	}
 
-	pMessage = new char[buf_size];
-	memset(pMessage, 0x00, buf_size);
+	std::unique_ptr<char[]> ptrMessage = std::make_unique<char[]>(buf_size);
+	memset(ptrMessage.get(), 0x00, buf_size);
 
 	{//scope for DatagramIdMonitor
 		DatagramIdMonitor DATAGRAM_ID_MONITOR;
 	
 		if(++datagramId_>999999999) datagramId_ = 1;
 	
-		sprintf_s(pMessage, buf_size, "X%09.9d", datagramId_);
+		sprintf_s(ptrMessage.get(), buf_size, "X%09.9d", datagramId_);
 	
 	#ifdef _DEBUG
 	#ifndef GTEST_PROJECT
 		if(debug_)
-			consoleio::print_line(L"datagramId_ is %d, packet signature is %hs", datagramId_, pMessage);
+			consoleio::print_line(L"datagramId_ is %d, packet signature is %hs", datagramId_, ptrMessage.get());
 	#endif
 	#endif
 	}
 
-	char* seek = pMessage+nRequestOffset;
+	char* seek = ptrMessage.get() + nRequestOffset;
 
 	*seek++ = chType;
 	
@@ -500,7 +498,7 @@ int Commands::createMessageFields(char*& pMessage, char chType, MSG_FIELD* pFiel
 						}
 						else
 #endif
-						    memcpy(seek - pFields[i-1].size, &nSizeInBytes, pFields[i-1].size);
+							memcpy(seek - pFields[i-1].size, &nSizeInBytes, pFields[i-1].size);
 					}
 					
 					pFields[i].size = nSizeInBytes;
@@ -519,7 +517,7 @@ int Commands::createMessageFields(char*& pMessage, char chType, MSG_FIELD* pFiel
 				q_signature_len_size = signature_len_size;
 			case SIGNATURE_FIELD:
 				{
-					int nErr = signMessage(pMessage+nRequestOffset+q_signature_offset, (seek-pMessage)-nRequestOffset-q_signature_offset-q_signature_len_size, (unsigned char*)seek, nSignatureLength);
+					int nErr = signMessage(ptrMessage.get()+nRequestOffset+q_signature_offset, (seek-ptrMessage.get())-nRequestOffset-q_signature_offset-q_signature_len_size, (unsigned char*)seek, nSignatureLength);
 					if(0 == nErr)
 					{
 					}
@@ -533,7 +531,8 @@ int Commands::createMessageFields(char*& pMessage, char chType, MSG_FIELD* pFiel
 		}
 	}
 
-	return static_cast<int>(seek-pMessage);
+	int msg_size = static_cast<int>(seek - ptrMessage.get());
+	return std::make_tuple(std::move(ptrMessage), msg_size);
 }
 
 int Commands::SecureNewTopicQ3(const std::wstring& channel, const CHANNEL_INFO* pcchinfo, const wchar_t* topic)
@@ -573,17 +572,17 @@ int Commands::SecureNewTopicQ3(const std::wstring& channel, const CHANNEL_INFO* 
 	fieldsQ3[0].data.ch_ = '3';
 	fieldsQ3[2].data.bytes_ = (unsigned char*)&TopicLentgh;
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'Q', fieldsQ3, _ARRAYSIZE(fieldsQ3));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('Q', fieldsQ3, _ARRAYSIZE(fieldsQ3));
 
-	if(pMessage)
+	if(ptrMessage)
 	{
 		size_t offset = 10/*'X'+DatagramID*/+sizeof(char)/*'Q'*/+fieldsQ3[0].size+fieldsQ3[1].size+fieldsQ3[2].size;
 
-		encryptData((unsigned char*)pMessage+offset, fieldsQ3[3].size, pcchinfo);
+		encryptData((unsigned char*)ptrMessage.get()+offset, fieldsQ3[3].size, pcchinfo);
 
-		send_err = sendBroadcastMsg(pMessage, msg_size);
-		delete[] pMessage;
+		send_err = sendBroadcastMsg(ptrMessage.get(), msg_size);
 	}
 
 	if(send_err == msg_size) return 0;
@@ -606,18 +605,17 @@ int Commands::ReplySecureTopicQ2(const std::wstring&  channel, const CHANNEL_INF
 	fieldsQ2[0].data.ch_ = '2';
 	fieldsQ2[2].data.bytes_ = (unsigned char*)&TopicLentgh;
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'Q', fieldsQ2, _ARRAYSIZE(fieldsQ2));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('Q', fieldsQ2, _ARRAYSIZE(fieldsQ2));
 
-	if(pMessage)
+	if(ptrMessage)
 	{
 		size_t offset = 10/*'X'+DatagramID*/+sizeof(char)/*'Q'*/+fieldsQ2[0].size+fieldsQ2[1].size+fieldsQ2[2].size;
 
-		encryptData((unsigned char*)pMessage+offset, fieldsQ2[3].size, pcchinfo);
+		encryptData((unsigned char*)ptrMessage.get()+offset, fieldsQ2[3].size, pcchinfo);
 
-		send_err = sendMsgTo(pMessage, msg_size, pinfo);
-
-		delete[] pMessage;
+		send_err = sendMsgTo(ptrMessage.get(), msg_size, pinfo);
 	}
 
 	if(send_err == msg_size) return 0;
@@ -640,14 +638,12 @@ int Commands::ReplySecureHereQ4(const std::wstring& channel, const USER_INFO* pi
 	fieldsQ4[0].data.ch_ = '4';
 	fieldsQ4[4].data.ch_ = ACTIVE_CHANNEL_STATE;
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'Q', fieldsQ4, _ARRAYSIZE(fieldsQ4));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('Q', fieldsQ4, _ARRAYSIZE(fieldsQ4));
 
-	if(pMessage)
-	{
-		send_err = sendMsgTo(pMessage, msg_size,pinfo,delay);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendMsgTo(ptrMessage.get(), msg_size,pinfo,delay);
 
 	if(send_err == msg_size) return 0;
 
@@ -679,14 +675,12 @@ int Commands::SecureHereQ8(const std::wstring& channel)
 
 	fieldsQ8[0].data.ch_ = '8';
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'Q', fieldsQ8, _ARRAYSIZE(fieldsQ8));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('Q', fieldsQ8, _ARRAYSIZE(fieldsQ8));
 
-	if(pMessage)
-	{
-		send_err = sendBroadcastMsg(pMessage, msg_size);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendBroadcastMsg(ptrMessage.get(), msg_size);
 
 	if(send_err == msg_size) return 0;
 
@@ -739,14 +733,12 @@ int Commands::SecureLeaveQ7(const CHANNEL_INFO* pcchinfo)
 	fieldsQ7[0].data.ch_ = '7';
 	fieldsQ7[3].data.ch_ = theApp.ptrMe_->gender;
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'Q', fieldsQ7, _ARRAYSIZE(fieldsQ7));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('Q', fieldsQ7, _ARRAYSIZE(fieldsQ7));
 
-	if(pMessage)
-	{
-		send_err = sendBroadcastMsg(pMessage, msg_size);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendBroadcastMsg(ptrMessage.get(), msg_size);
 
 	if(send_err == msg_size) return 0;
 
@@ -791,17 +783,17 @@ int Commands::SecureChannelMsgQ01(const std::wstring& channel, const CHANNEL_INF
 	fieldsQ10[0].data.ch_ = fMe ? '1' : '0';
 	fieldsQ10[3].data.bytes_ = (unsigned char*)&MessageTextLentgh;
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'Q', fieldsQ10, _ARRAYSIZE(fieldsQ10));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('Q', fieldsQ10, _ARRAYSIZE(fieldsQ10));
 
-	if(pMessage)
+	if(ptrMessage)
 	{
 		size_t offset = 10/*'X'+DatagramID*/+sizeof(char)/*'Q'*/+fieldsQ10[0].size+fieldsQ10[1].size+fieldsQ10[2].size+fieldsQ10[3].size;
 
-		encryptData((unsigned char*)pMessage+offset, fieldsQ10[4].size, pcchinfo);
+		encryptData((unsigned char*)ptrMessage.get()+offset, fieldsQ10[4].size, pcchinfo);
 
-		send_err = sendBroadcastMsg(pMessage, msg_size);
-		delete[] pMessage;
+		send_err = sendBroadcastMsg(ptrMessage.get(), msg_size);
 	}
 
 	if(send_err == msg_size) return 0;
@@ -842,14 +834,11 @@ int Commands::SecureJoinQ5(const std::wstring& channel, const wchar_t* passwd)
 	fieldsQ5[4].data.ch_ = theApp.ptrMe_->gender;
 	fieldsQ5[5].data.bytes_ = hash;
 
-	char* pMessage = 0;
-	msg_size = createMessageFields(pMessage, 'Q', fieldsQ5, _ARRAYSIZE(fieldsQ5));
+	std::unique_ptr<char[]> ptrMessage;
+	std::tie(ptrMessage, msg_size) = createMessageFields('Q', fieldsQ5, _ARRAYSIZE(fieldsQ5));
 
-	if(pMessage)
-	{
-		send_err = sendBroadcastMsg(pMessage, msg_size);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendBroadcastMsg(ptrMessage.get(), msg_size);
 
 	if(send_err == msg_size)
 	{
@@ -897,14 +886,12 @@ int Commands::ReplySecureJoinQ6(const std::wstring& channel, char result, const 
 	fieldsQ6[0].data.ch_ = '6';
 	fieldsQ6[3].data.ch_ = result;
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'Q', fieldsQ6, _ARRAYSIZE(fieldsQ6));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('Q', fieldsQ6, _ARRAYSIZE(fieldsQ6));
 
-	if(pMessage)
-	{
-		send_err = sendMsgTo(pMessage, msg_size, pinfo,delay);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendMsgTo(ptrMessage.get(), msg_size, pinfo,delay);
 
 	if(send_err == msg_size) return 0;
 
@@ -954,14 +941,12 @@ int Commands::ReplyList1(const USER_INFO* pinfo, int delay)
 	fields1[16].data.bytes_ = theApp.ptrMe_->pub_key.get();
 	fields1[17].data.bytes_ = &theApp.ptrMe_->icon;
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, '1', fields1, _ARRAYSIZE(fields1));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('1', fields1, _ARRAYSIZE(fields1));
 
-	if(pMessage)
-	{
-		send_err = sendMsgTo(pMessage, msg_size, pinfo, delay);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendMsgTo(ptrMessage.get(), msg_size, pinfo, delay);
 
 	if(send_err == msg_size) return 0;
 
@@ -990,14 +975,12 @@ int Commands::ReplyConfirmMassTextMsg7(const wchar_t* datagramId, const USER_INF
 	fields7[3].data.ch_ = theApp.ptrMe_->gender;
 	fields7[5].data.bytes_ = pNullBytes;
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, '7', fields7, _ARRAYSIZE(fields7));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('7', fields7, _ARRAYSIZE(fields7));
 
-	if(pMessage)
-	{
-		send_err = sendMsgTo(pMessage, msg_size, pinfo, delay);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendMsgTo(ptrMessage.get(), msg_size, pinfo, delay);
 
 	if(send_err == msg_size) return 0;
 
@@ -1014,14 +997,12 @@ int Commands::ReplyTopicC(const std::wstring& channel, const wchar_t* topic, con
 					,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t), channel.c_str(),false}
 					,{STRING_FIELD,(wcslen(topic)+1)*sizeof(wchar_t), topic,false}};
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'C', fieldsC, _ARRAYSIZE(fieldsC));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('C', fieldsC, _ARRAYSIZE(fieldsC));
 
-	if(pMessage)
-	{
-		send_err = sendMsgTo(pMessage, msg_size, pinfo, delay);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendMsgTo(ptrMessage.get(), msg_size, pinfo, delay);
 
 	if(send_err == msg_size) return 0;
 
@@ -1070,16 +1051,12 @@ int Commands::ReplyInfoG(const USER_INFO* pinfo)
 		,{STRING_FIELD, (theApp.MyPersonalInfo_.email.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.email.c_str(),false}
 		,{STRING_FIELD, (theApp.MyPersonalInfo_.address.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.address.c_str(),false}};
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'G', fieldsG, _ARRAYSIZE(fieldsG));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('G', fieldsG, _ARRAYSIZE(fieldsG));
 
-	//delete[] wszFromAddr;
-
-	if(pMessage)
-	{
-		send_err = sendMsgTo(pMessage, msg_size, pinfo);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendMsgTo(ptrMessage.get(), msg_size, pinfo);
 
 	if(send_err == msg_size) return 0;
 	return send_err;
@@ -1095,14 +1072,12 @@ int Commands::ReplyConfirmBeepH(const USER_INFO* pinfo)
 	fieldsH[0].data.ch_ = '1';
 	fieldsH[3].data.ch_ = theApp.ptrMe_->gender;
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'H', fieldsH, _ARRAYSIZE(fieldsH));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('H', fieldsH, _ARRAYSIZE(fieldsH));
 
-	if(pMessage)
-	{
-		send_err = sendMsgTo(pMessage, msg_size, pinfo);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendMsgTo(ptrMessage.get(), msg_size, pinfo);
 
 	if(send_err == msg_size) return 0;
 	return send_err;
@@ -1120,14 +1095,12 @@ int Commands::ReplyHereK(const std::wstring& channel, const USER_INFO* pinfo, in
 
 	fieldsK[3].data.ch_ = ACTIVE_CHANNEL_STATE;
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'K', fieldsK, _ARRAYSIZE(fieldsK));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('K', fieldsK, _ARRAYSIZE(fieldsK));
 
-	if(pMessage)
-	{
-		send_err = sendMsgTo(pMessage, msg_size, pinfo, delay);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendMsgTo(ptrMessage.get(), msg_size, pinfo, delay);
 
 	if(send_err == msg_size) return 0;
 	return send_err;
@@ -1143,14 +1116,12 @@ int Commands::ReplyChannelsO(const USER_INFO* pinfo)
 
 	/*'O' To h00 ListOfChannels '#'*/
 	MSG_FIELD fieldsO[2] = {{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick(),false},{STRING_FIELD,sizeof(wchar_t)*(strChannels.length()+1),strChannels.c_str(),false}};
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'O', fieldsO, _ARRAYSIZE(fieldsO));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('O', fieldsO, _ARRAYSIZE(fieldsO));
 
-	if(pMessage)
-	{
-		send_err = sendMsgTo(pMessage, msg_size, pinfo);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendMsgTo(ptrMessage.get(), msg_size, pinfo);
 
 	if(send_err == msg_size) return 0;
 	return send_err;
@@ -1215,14 +1186,11 @@ int Commands::Join4(const std::wstring& channel)
 		fields4Main[14].data.bytes_ = theApp.ptrMe_->pub_key.get();
 		fields4Main[15].data.bytes_ = &theApp.ptrMe_->icon;
 
-		char* pMessage = 0;
-		msg_size = createMessageFields(pMessage, '4', fields4Main, _ARRAYSIZE(fields4Main));
+		std::unique_ptr<char[]> ptrMessage;
+		std::tie(ptrMessage, msg_size) = createMessageFields('4', fields4Main, _ARRAYSIZE(fields4Main));
 
-		if(pMessage)
-		{
-			send_err = sendBroadcastMsg(pMessage, msg_size);
-			delete[] pMessage;
-		}
+		if(ptrMessage)
+			send_err = sendBroadcastMsg(ptrMessage.get(), msg_size);
 	}
 	else
 	{
@@ -1235,14 +1203,11 @@ int Commands::Join4(const std::wstring& channel)
 		fields4[2].data.ch_ = theApp.ptrMe_->status;
 		fields4[3].data.ch_ = theApp.ptrMe_->gender;
 
-		char* pMessage = 0;
-		msg_size = createMessageFields(pMessage, '4', fields4, _ARRAYSIZE(fields4));
+		std::unique_ptr<char[]> ptrMessage;
+		std::tie(ptrMessage, msg_size) = createMessageFields('4', fields4, _ARRAYSIZE(fields4));
 
-		if(pMessage)
-		{
-			send_err = sendBroadcastMsg(pMessage, msg_size);
-			delete[] pMessage;
-		}
+		if(ptrMessage)
+			send_err = sendBroadcastMsg(ptrMessage.get(), msg_size);
 	}
 
 	if(send_err == msg_size)
@@ -1309,14 +1274,12 @@ int Commands::ChannelMsg2A(const std::wstring& channel, const wchar_t* text, boo
 							,{SIGNATURE_FIELD,0,0,false}};
 
 	char msg_type = fMe ? 'A' : '2';
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, msg_type, fields2, _ARRAYSIZE(fields2));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields(msg_type, fields2, _ARRAYSIZE(fields2));
 
-	if(pMessage)
-	{
-		send_err = sendBroadcastMsg(pMessage, msg_size);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendBroadcastMsg(ptrMessage.get(), msg_size);
 
 	if(send_err == msg_size) return 0;
 	return send_err;
@@ -1354,14 +1317,12 @@ int Commands::MassTextMsgE(const wchar_t* text)
 		MSG_FIELD fieldsE[3] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
 								,{STRING_FIELD,sizeof(wchar_t)*(wcslen((*it)->getNick())+1),(*it)->getNick(),false}
 								,{STRING_FIELD,(textlen+1)*sizeof(wchar_t),text,false}};
-		char* pMessage = 0;
-		int msg_size = createMessageFields(pMessage, 'E', fieldsE, _ARRAYSIZE(fieldsE));
+		std::unique_ptr<char[]> ptrMessage;
+		int msg_size = 0;
+		std::tie(ptrMessage, msg_size) = createMessageFields('E', fieldsE, _ARRAYSIZE(fieldsE));
 
-		if(pMessage)
-		{
-			send_err = sendMsgTo(pMessage, msg_size, (*it).get());
-			delete[] pMessage;
-		}
+		if(ptrMessage)
+			send_err = sendMsgTo(ptrMessage.get(), msg_size, (*it).get());
 
 		++it;
 
@@ -1409,14 +1370,12 @@ int Commands::FloodZ(const USER_INFO* pinfo, int nsecs)
 	MSG_FIELD fieldsZ[3] = {{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick(),false}
 							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
 							,{STRING_FIELD,(wcslen(wszSeconds)+1)*sizeof(wchar_t),wszSeconds,false}};
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'Z', fieldsZ, _ARRAYSIZE(fieldsZ));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('Z', fieldsZ, _ARRAYSIZE(fieldsZ));
 
-	if(pMessage)
-	{
-		send_err = sendMsgTo(pMessage, msg_size, pinfo);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendMsgTo(ptrMessage.get(), msg_size, pinfo);
 
 	if(send_err == msg_size)
 	{
@@ -1455,14 +1414,12 @@ int Commands::MassTextMsgToE(const wchar_t* to, const wchar_t* text)
 	MSG_FIELD fieldsE[3] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
 							,{STRING_FIELD,(wcslen(to)+1)*sizeof(wchar_t),to,false}
 							,{STRING_FIELD,(textlen+1)*sizeof(wchar_t),text,false}};
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'E', fieldsE, _ARRAYSIZE(fieldsE));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('E', fieldsE, _ARRAYSIZE(fieldsE));
 
-	if(pMessage)
-	{
-		send_err = sendMsgTo(pMessage, msg_size, pinfo);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendMsgTo(ptrMessage.get(), msg_size, pinfo);
 
 	if(send_err == msg_size) return 0;
 
@@ -1494,14 +1451,12 @@ int Commands::NickName3(const wchar_t* nick)
 							,{SIGNATURE_FIELD,0,0,false}};
 	fields3[2].data.ch_ = theApp.ptrMe_->gender;
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, '3', fields3, _ARRAYSIZE(fields3));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('3', fields3, _ARRAYSIZE(fields3));
 
-	if(pMessage)
-	{
-		send_err = sendBroadcastMsg(pMessage, msg_size);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendBroadcastMsg(ptrMessage.get(), msg_size);
 
 	if(send_err == msg_size)
 	{
@@ -1553,14 +1508,12 @@ int Commands::NewTopicB(const std::wstring& channel, const wchar_t* topic)
 							,{STRING_FIELD,(topic_len+1)*sizeof(wchar_t),topic,false}
 							,{SIGNATURE_FIELD,0,0,false}};
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'B', fieldsB, _ARRAYSIZE(fieldsB));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('B', fieldsB, _ARRAYSIZE(fieldsB));
 
-	if(pMessage)
-	{
-		send_err = sendBroadcastMsg(pMessage, msg_size);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendBroadcastMsg(ptrMessage.get(), msg_size);
 
 	if(send_err == msg_size) return 0;
 
@@ -1599,13 +1552,14 @@ int Commands::PingPongP(const USER_INFO* pinfo, bool fPong)
 	fieldsP[6].data.bytes_ = (unsigned char*)&theApp.ptrMe_->pub_key_size;
 	fieldsP[7].data.bytes_ = theApp.ptrMe_->pub_key.get();
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'P', fieldsP, _ARRAYSIZE(fieldsP));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('P', fieldsP, _ARRAYSIZE(fieldsP));
 
-	if(pMessage)
+	if(ptrMessage)
 	{
-		send_err = sendMsgTo(pMessage, msg_size, pinfo);
-		delete[] pMessage;
+		send_err = sendMsgTo(ptrMessage.get(), msg_size, pinfo);
+
 
 		if(!fPong && (msg_size==send_err))
 		{
@@ -1631,13 +1585,14 @@ int Commands::BeepH(const wchar_t* to)
 	MSG_FIELD fieldsH[3] = {{CHAR_FIELD,1,0,false},{STRING_FIELD,(wcslen(to)+1)*sizeof(wchar_t),to,false},{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}};
 	fieldsH[0].data.ch_ = '0';
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'H', fieldsH, _ARRAYSIZE(fieldsH));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('H', fieldsH, _ARRAYSIZE(fieldsH));
 
-	if(pMessage)
+	if(ptrMessage)
 	{
-		send_err = sendMsgTo(pMessage, msg_size, pinfo);
-		delete[] pMessage;
+		send_err = sendMsgTo(ptrMessage.get(), msg_size, pinfo);
+
 
 		if(msg_size==send_err)
 		{
@@ -1660,13 +1615,14 @@ int Commands::InfoF(const wchar_t* to)
 	/*'F' To h00 From h00*/
 	MSG_FIELD fieldsF[2] = {{STRING_FIELD,(wcslen(to)+1)*sizeof(wchar_t),to,false},{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}};
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'F', fieldsF, _ARRAYSIZE(fieldsF));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('F', fieldsF, _ARRAYSIZE(fieldsF));
 
-	if(pMessage)
+	if(ptrMessage)
 	{
-		send_err = sendMsgTo(pMessage, msg_size, pinfo);
-		delete[] pMessage;
+		send_err = sendMsgTo(ptrMessage.get(), msg_size, pinfo);
+
 	}
 
 	if(msg_size==send_err)
@@ -1700,14 +1656,12 @@ int Commands::HereL(const std::wstring& channel)
 	MSG_FIELD fieldsL[2] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
 							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}};
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'L', fieldsL, _ARRAYSIZE(fieldsL));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('L', fieldsL, _ARRAYSIZE(fieldsL));
 
-	if(pMessage)
-	{
-		send_err = sendBroadcastMsg(pMessage, msg_size);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendBroadcastMsg(ptrMessage.get(), msg_size);
 
 	if(send_err == msg_size) return 0;
 
@@ -1724,14 +1678,12 @@ int Commands::ChannelsN(const wchar_t* to)
 	//send Channels
 	/*'N' From h00*/
 	MSG_FIELD fieldsN[1] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}};
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, 'N', fieldsN, _ARRAYSIZE(fieldsN));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('N', fieldsN, _ARRAYSIZE(fieldsN));
 
-	if(pMessage)
-	{
-		send_err = sendMsgTo(pMessage, msg_size, pinfo);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendMsgTo(ptrMessage.get(), msg_size, pinfo);
 
 	if(send_err == msg_size) return 0;
 
@@ -1747,14 +1699,12 @@ int Commands::List0()
 	fields0[1].data.ch_ = theApp.ptrMe_->codepage;
 	fields0[2].data.bytes_ = pNullBytes;
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, '0', fields0, _ARRAYSIZE(fields0));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('0', fields0, _ARRAYSIZE(fields0));
 
-	if(pMessage)
-	{
-		send_err = sendBroadcastMsg(pMessage, msg_size);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendBroadcastMsg(ptrMessage.get(), msg_size);
 
 	if(send_err == msg_size) return 0;
 
@@ -1806,14 +1756,12 @@ int Commands::Leave5(const CHANNEL_INFO* pcchinfo)
 
 	fields5[2].data.ch_ = theApp.ptrMe_->gender;
 
-	char* pMessage = 0;
-	int msg_size = createMessageFields(pMessage, '5', fields5, _ARRAYSIZE(fields5));
+	std::unique_ptr<char[]> ptrMessage;
+	int msg_size = 0;
+	std::tie(ptrMessage, msg_size) = createMessageFields('5', fields5, _ARRAYSIZE(fields5));
 
-	if(pMessage)
-	{
-		send_err = sendBroadcastMsg(pMessage, msg_size);
-		delete[] pMessage;
-	}
+	if(ptrMessage)
+		send_err = sendBroadcastMsg(ptrMessage.get(), msg_size);
 
 	if(send_err == msg_size) return 0;
 

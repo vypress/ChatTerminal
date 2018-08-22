@@ -359,7 +359,8 @@ private:
 	@nFields - number of fields in the pFields array
 	@return - number of bytes copied to the message buffer, it is a size of the created message
 	*/
-	int createMessageFields(char*& pMessage, char chType, MSG_FIELD* pFields, int nFields);
+	//int createMessageFields(char*& pMessage, char chType, MSG_FIELD* pFields, int nFields);
+	std::tuple<std::unique_ptr<char[]>, int> Commands::createMessageFields(char chType, MSG_FIELD* pFields, int nFields);
 
 #ifndef CHATTERM_OS_WINDOWS
 	// Big endian flag; True on big endian processors

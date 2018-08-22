@@ -1593,7 +1593,7 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 								std::shared_ptr<networkio::Interface> ptrIf;
 								if((S_OK==hr3) && varNameValue.bstrVal && *varNameValue.bstrVal)
 								{
-									networkio::Interface* pIf = nullptr;
+									networkio::Interface* pIf;
 									networkio::get_interface_by_adapter_name(varNameValue.bstrVal, varAddressValue.bstrVal, family, pIf);
 									ptrIf.reset(pIf);
 								}
@@ -1701,9 +1701,8 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 
 												if(0!= ptrS->bindToInterface(pif, port, dwTTL))
 												{
-													wchar_t* wszAddress = pif->getStringAddress();
-													consoleio::print_line(wszErrNotBindSender, wszAddress);
-													delete[] wszAddress;
+													std::wstring wszAddress = pif->getStringAddress();
+													consoleio::print_line(wszErrNotBindSender, wszAddress.c_str());
 												}
 
 												mapIdSender[varIdValue.bstrVal] = ptrS;
@@ -1804,9 +1803,8 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 													}
 													else
 													{
-														wchar_t* wszAddress = ptrIf->getStringAddress(port);
-														consoleio::print_line(wszErrNotBindRcvr, wszAddress);
-														delete[] wszAddress;
+														std::wstring wszAddress = ptrIf->getStringAddress(port);
+														consoleio::print_line(wszErrNotBindRcvr, wszAddress.c_str());
 													}
 												}
 											}
@@ -2679,9 +2677,8 @@ void ChatTerminalApp::signalAlarm(int signo)
 				}
 				else
 				{
-					wchar_t* wszFromAddr = networkio::sockaddr_to_string(pinfo->naddr_info.psaddr_, sizeof(sockaddr_in6));
-					consoleio::print_line( pinfo->color, false, wszUserDropped, getStrTime(true), pinfo->getNick(), wszFromAddr);
-					delete[] wszFromAddr;
+					std::wstring wszFromAddr = networkio::sockaddr_to_string(pinfo->naddr_info.psaddr_, sizeof(sockaddr_in6));
+					consoleio::print_line( pinfo->color, false, wszUserDropped, getStrTime(true), pinfo->getNick(), wszFromAddr.c_str());
 
 					//delete *it;
 					//it = USER_INFO::SetOfUsers_.erase(it);

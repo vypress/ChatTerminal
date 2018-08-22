@@ -125,32 +125,30 @@ namespace networkio
 	*/
 
 #ifdef CHATTERM_OS_WINDOWS
-	wchar_t* sockaddr_to_string(const sockaddr* pcaddr, size_t addrlen)
+	std::wstring sockaddr_to_string(const sockaddr* pcaddr, size_t addrlen)
 	{
 		DWORD dwAddressStringLength = INET6_ADDRSTRLEN;
-		wchar_t* pwszAddress = new wchar_t[dwAddressStringLength];
-		memset(pwszAddress, 0x00, dwAddressStringLength*sizeof(wchar_t));
+		std::unique_ptr<wchar_t[]> ptrAddress = std::make_unique<wchar_t[]>(dwAddressStringLength);
+		memset(ptrAddress.get(), 0x00, dwAddressStringLength*sizeof(wchar_t));
 
 		sockaddr* paddr = const_cast<sockaddr*>(pcaddr);
 
 		//WSAAddressToString fails when lpszAddressString=NULL in Windows XP
-		if(SOCKET_ERROR == WSAAddressToString(paddr, static_cast<DWORD>(addrlen), 0, pwszAddress, &dwAddressStringLength))
+		if(SOCKET_ERROR == WSAAddressToString(paddr, static_cast<DWORD>(addrlen), 0, ptrAddress.get(), &dwAddressStringLength))
 		{
 			int error = WSAGetLastError();
 			if((WSAEFAULT == error) && dwAddressStringLength)
 			{
-				delete[] pwszAddress;
-				pwszAddress = new wchar_t[dwAddressStringLength];
-				memset(pwszAddress, 0x00, dwAddressStringLength*sizeof(wchar_t));
+				ptrAddress = std::make_unique<wchar_t[]>(dwAddressStringLength);
+				memset(ptrAddress.get(), 0x00, dwAddressStringLength*sizeof(wchar_t));
 
-				if(0 == WSAAddressToString(paddr, static_cast<DWORD>(addrlen), 0, pwszAddress, &dwAddressStringLength))
-					return pwszAddress;
+				if(0 == WSAAddressToString(paddr, static_cast<DWORD>(addrlen), 0, ptrAddress.get(), &dwAddressStringLength))
+					return std::wstring(ptrAddress.get());
 			}
 		}
 		else
-			return pwszAddress;
+			return std::wstring(ptrAddress.get());
 
-		delete[] pwszAddress;
 		return 0;
 	}
 
@@ -1115,9 +1113,8 @@ namespace networkio
 
 			while(ai_next)
 			{
-				wchar_t* wszAddress = sockaddr_to_string(ai_next->ai_addr, ai_next->ai_addrlen);
-				consoleio::print_line(wszAddress);
-				delete[] wszAddress;
+				std::wstring wszAddress = sockaddr_to_string(ai_next->ai_addr, ai_next->ai_addrlen);
+				consoleio::print_line(wszAddress.c_str());
 
 				ai_next = ai_next->ai_next;
 			}
@@ -1213,27 +1210,25 @@ namespace networkio
 
 		if(0!=psref->bindToInterface(piref, port, DWORD(-1)))
 		{
-			wchar_t* wszAddress = piref->getStringAddress();
-			consoleio::print_line(resources::wszErrNotBindSender, wszAddress);
-			delete[] wszAddress;
+			std::wstring wszAddress = piref->getStringAddress();
+			consoleio::print_line(resources::wszErrNotBindSender, wszAddress.c_str());
 		}
 
 		prref = std::make_shared<Receiver>(psref.get());
 		port = DEFAULT_PORT;
 		int bind_result = prref->bindToInterface(piref, port, wszMcastAddress);
-		wchar_t* wszIfAddress = piref->getStringAddress(port);
+		std::wstring wszIfAddress = piref->getStringAddress(port);
 
 		if(0 != bind_result)
-			consoleio::print_line(resources::wszErrNotBindRcvr, wszIfAddress);
+			consoleio::print_line(resources::wszErrNotBindRcvr, wszIfAddress.c_str());
 
 		pdref = std::make_unique<DESTADDR_INFO>(psref.get());
 
 		if(0 != pdref->bindToAddress(wszMcastAddress, port))
 			consoleio::print_line(resources::wszErrNotBindDestAddr, wszMcastAddress);
 
-		consoleio::print_line(resources::wszDefaultNetIf, wszIfAddress, wszMcastAddress);
+		consoleio::print_line(resources::wszDefaultNetIf, wszIfAddress.c_str(), wszMcastAddress);
 
-		delete[] wszIfAddress;
 		return true;
 	}
 
@@ -1242,13 +1237,13 @@ namespace networkio
 
 	Interface::Interface(const wchar_t* wszAddress, int ai_family) : pai_(0), paibuf_(0), ipv6_if_index_(0)
 	{
-		char* address = 0;
+		std::unique_ptr<char[]> ptrAddress;
 		size_t buflen = 0;
 #ifdef CHATTERM_OS_WINDOWS
 		if(0 == wcstombs_s(&buflen, NULL, 0, wszAddress, 0))
 		{
-			address = new char[buflen];
-			wcstombs_s(&buflen, address, buflen, wszAddress, _TRUNCATE);
+			ptrAddress = std::make_unique<char[]>(buflen);
+			wcstombs_s(&buflen, ptrAddress.get(), buflen, wszAddress, _TRUNCATE);
 		}
 #else
 		buflen = NixHlpr.assignCharSz(&address, wszAddress);
@@ -1261,8 +1256,7 @@ namespace networkio
 		hints.ai_protocol = IPPROTO_UDP;
 
 		// Resolve the server address and port
-		getaddrinfo(address, "0"/*any port*/, &hints, &pai_);
-		delete[] address;
+		getaddrinfo(ptrAddress.get(), "0"/*any port*/, &hints, &pai_);
 
 		if(pai_ && (AF_INET6==pai_->ai_family) && pai_->ai_addr)
 		{
@@ -1322,7 +1316,7 @@ namespace networkio
 	}
 #endif // CHATTERM_OS_WINDOWS
 
-	wchar_t* Interface::getStringAddress(unsigned short port)
+	std::wstring Interface::getStringAddress(unsigned short port)
 	{
 		sockaddr_in6 saddr = {0};
 		memcpy(&saddr, pai_->ai_addr, __min(pai_->ai_addrlen, sizeof(saddr)));
@@ -1331,7 +1325,7 @@ namespace networkio
 		return sockaddr_to_string(reinterpret_cast<sockaddr*>(&saddr), sizeof(saddr));
 	}
 
-	wchar_t* Interface::getStringAddress()
+	std::wstring Interface::getStringAddress()
 	{
 		return sockaddr_to_string(pai_->ai_addr, pai_->ai_addrlen);
 	}
@@ -1463,16 +1457,13 @@ namespace networkio
 			consoleio::PrintLinesMonitor PRINT_LINES_MONITOR;
 			consoleio::print_line_selected(resources::wszDbgPacket, len, theApp.getStrTime(true));
 
-			wchar_t* wszToAddr = sockaddr_to_string(paddr, sizeof(sockaddr_in6));
-			wchar_t* wszFromAddr = sockaddr_to_string(pif_->pai_->ai_addr, pif_->pai_->ai_addrlen);
+			std::wstring wszToAddr = sockaddr_to_string(paddr, sizeof(sockaddr_in6));
+			std::wstring wszFromAddr = sockaddr_to_string(pif_->pai_->ai_addr, pif_->pai_->ai_addrlen);
 
 			if(pif_->pai_->ai_family == AF_INET6)
-				consoleio::print_line_selected(resources::wszDbgPacketSentToFrom6, wszToAddr, wszFromAddr, ntohs(port_));
+				consoleio::print_line_selected(resources::wszDbgPacketSentToFrom6, wszToAddr.c_str(), wszFromAddr.c_str(), ntohs(port_));
 			else
-				consoleio::print_line_selected(resources::wszDbgPacketSentToFrom, wszToAddr, wszFromAddr, ntohs(port_));
-
-			delete[] wszFromAddr;
-			delete[] wszToAddr;
+				consoleio::print_line_selected(resources::wszDbgPacketSentToFrom, wszToAddr.c_str(), wszFromAddr.c_str(), ntohs(port_));
 
 			consoleio::print_bytes(reinterpret_cast<const unsigned char*>(buf), len);
 		}
@@ -1991,16 +1982,13 @@ namespace networkio
 
 			consoleio::print_line_selected(resources::wszDbgPacket, len, theApp.getStrTime(true));
 
-			wchar_t* wszFromAddr = sockaddr_to_string(reinterpret_cast<const sockaddr*>(&from_addr_), sizeof(sockaddr_in6));
-			wchar_t* wszToAddr = sockaddr_to_string(ptrIf_->pai_->ai_addr, ptrIf_->pai_->ai_addrlen);
+			std::wstring wszFromAddr = sockaddr_to_string(reinterpret_cast<const sockaddr*>(&from_addr_), sizeof(sockaddr_in6));
+			std::wstring wszToAddr = sockaddr_to_string(ptrIf_->pai_->ai_addr, ptrIf_->pai_->ai_addrlen);
 
 			if(ptrIf_->pai_->ai_family == AF_INET6)
-				consoleio::print_line_selected(resources::wszDbgPacketRcvdFromTo6, wszFromAddr, wszToAddr, ntohs(port_));
+				consoleio::print_line_selected(resources::wszDbgPacketRcvdFromTo6, wszFromAddr.c_str(), wszToAddr.c_str(), ntohs(port_));
 			else
-				consoleio::print_line_selected(resources::wszDbgPacketRcvdFromTo, wszFromAddr, wszToAddr, ntohs(port_));
-
-			delete[] wszToAddr;
-			delete[] wszFromAddr;
+				consoleio::print_line_selected(resources::wszDbgPacketRcvdFromTo, wszFromAddr.c_str(), wszToAddr.c_str(), ntohs(port_));
 
 			consoleio::print_bytes(reinterpret_cast<unsigned char*>(pPacket), len);
 		}

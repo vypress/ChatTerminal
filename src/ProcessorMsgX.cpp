@@ -2022,9 +2022,8 @@ bool ProcessorMsgX::processChangeNickNameU(const char* pmsg, size_t msglen)
 		return true;
 	}
 
-	wchar_t* wszFromAddr = networkio::sockaddr_to_string(pUserInfo->naddr_info.psaddr_, sizeof(sockaddr_in6));
-	consoleio::print_line(pUserInfo->color, false, wszRequireToChangeNick, theApp.getStrTime(), from, wszFromAddr);
-	delete[] wszFromAddr;
+	std::wstring wszFromAddr = networkio::sockaddr_to_string(pUserInfo->naddr_info.psaddr_, sizeof(sockaddr_in6));
+	consoleio::print_line(pUserInfo->color, false, wszRequireToChangeNick, theApp.getStrTime(), from, wszFromAddr.c_str());
 	return true;
 }
 

@@ -380,8 +380,10 @@ public:
 	}
 
 private:
-	ContainersMonitor(const ContainersMonitor&);
+	ContainersMonitor(const ContainersMonitor&) = delete;
+	ContainersMonitor(ContainersMonitor&&) = delete;
 	ContainersMonitor& operator=(const ContainersMonitor&) = delete;
+	ContainersMonitor& operator=(ContainersMonitor&&) = delete;
 	ContainersMonitor* operator&() = delete;
 
 	static void Initialize()

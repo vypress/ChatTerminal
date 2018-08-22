@@ -38,9 +38,9 @@ namespace networkio
 	Creates string representation of an IP address
 	@pcaddr - const pointer to the address structure
 	@addrlen - size of the address structure
-	@return - a buffer that contains the string, buffer must be freed by delete[] operator
+	@return - a buffer that contains the string
 	*/
-	wchar_t* sockaddr_to_string(const sockaddr* pcaddr, size_t addrlen);
+	std::wstring sockaddr_to_string(const sockaddr* pcaddr, size_t addrlen);
 
 	/**
 	Searches network interface by adapter name or friendly name and address.
@@ -84,8 +84,8 @@ namespace networkio
 			}
 		}
 
-		wchar_t* getStringAddress(unsigned short port);
-		wchar_t* getStringAddress();
+		std::wstring getStringAddress(unsigned short port);
+		std::wstring getStringAddress();
 
 	private:
 		addrinfo* pai_;
