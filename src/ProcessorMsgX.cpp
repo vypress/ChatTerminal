@@ -421,7 +421,7 @@ bool ProcessorMsgX::process(const char* pmsg, size_t msglen, const networkio::Re
 	return false;
 }
 
-size_t ProcessorMsgX::parseMessageFields(const char* pMessage, size_t len, MSG_FIELD* pFields, int nFields)
+size_t ProcessorMsgX::parseMessageFields(const char* pMessage, size_t len, MSG_FIELD_OUT* pFields, int nFields)
 {
 	size_t processed = 0;
 	const char* seek = pMessage;
@@ -442,7 +442,6 @@ size_t ProcessorMsgX::parseMessageFields(const char* pMessage, size_t len, MSG_F
 					memcpy(pbytes, seek, pFields[i].size);
 					seek+=pFields[i].size;
 
-					pFields[i].delete_ = true;
 					pFields[i].data.bytes_ = pbytes;
 					processed+=data_len;
 				}
@@ -461,7 +460,6 @@ size_t ProcessorMsgX::parseMessageFields(const char* pMessage, size_t len, MSG_F
 					pbytes[pFields[i].size-j-1] = seek[j];
 					
 					seek+=pFields[i].size;
-					pFields[i].delete_ = true;
 					pFields[i].data.bytes_ = pbytes;
 					processed+=data_len;
 
@@ -475,7 +473,6 @@ size_t ProcessorMsgX::parseMessageFields(const char* pMessage, size_t len, MSG_F
 					memcpy(pbytes, seek, pFields[i].size);
 					seek+=pFields[i].size;
 
-					pFields[i].delete_ = true;
 					pFields[i].data.bytes_ = pbytes;
 					processed+=data_len;
 				}
@@ -508,7 +505,6 @@ size_t ProcessorMsgX::parseMessageFields(const char* pMessage, size_t len, MSG_F
 #else
 					pFields[i].size = NixHlpr.convUtf8ToWchar((unsigned char*)field_data, data_len, wszData, data_len+1);
 #endif // CHATTERM_OS_WINDOWS
-					pFields[i].delete_ = true;
 					pFields[i].data.wsz_ = wszData;
 
 					processed+=data_len;
@@ -538,7 +534,7 @@ bool ProcessorMsgX::processList0(const char* pmsg, size_t msglen, const networki
 	const size_t len = msglen-1;
 
 	/*'0' From h00 CodePage h00*/
-	MSG_FIELD fields0[3] = {{STRING_FIELD,0,0,false},{CHAR_FIELD,1,0,false},{BYTES_FIELD,1,0,false}};
+	MSG_FIELD_OUT fields0[3] = {{STRING_FIELD,0,0},{CHAR_FIELD,1,0},{BYTES_FIELD,1,0}};
 	size_t result = parseMessageFields(seek, len, fields0, _ARRAYSIZE(fields0));
 	if(result<1) return false;
 
@@ -555,7 +551,7 @@ bool ProcessorMsgX::processList0(const char* pmsg, size_t msglen, const networki
 	
 	if (theApp.ptrMe_->cmpNick(from))
 	{
-		networkio::NETADDR_INFO::assign_from_receiver(theApp.ptrMe_->naddr_info, pcrcvr);
+		theApp.ptrMe_->naddr_info.assign_from_receiver(pcrcvr);
 		theApp.Commands_.ReplyList1(theApp.ptrMe_.get(), randomSleep());
 		return true;
 	}
@@ -565,7 +561,7 @@ bool ProcessorMsgX::processList0(const char* pmsg, size_t msglen, const networki
 
 	if(ptrUserInfo)
 	{
-		networkio::NETADDR_INFO::assign_from_receiver(ptrUserInfo->naddr_info, pcrcvr);
+		ptrUserInfo->naddr_info.assign_from_receiver(pcrcvr);
 	}
 	else
 	{
@@ -573,7 +569,7 @@ bool ProcessorMsgX::processList0(const char* pmsg, size_t msglen, const networki
 		ptrUserInfo = std::make_shared<USER_INFO>();
 		ptrUserInfo->setNick(from);
 
-		networkio::NETADDR_INFO::assign_from_receiver(ptrUserInfo->naddr_info, pcrcvr);
+		ptrUserInfo->naddr_info.assign_from_receiver(pcrcvr);
 
 		USER_INFO::SetOfUsers_.insert(ptrUserInfo);
 
@@ -618,13 +614,13 @@ bool ProcessorMsgX::processReplyList1(const char* pmsg, size_t msglen, const net
 	//Ver 2.0 Icon
 	//Ver 2.1 Signature SignatureSize
 
-	MSG_FIELD fields1[16] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{CHAR_FIELD,1,0,false},{CHAR_FIELD,1,0,false}
-		,{BYTES_FIELD,1,0,false},{NUMBER_FIELD,sizeof(ver),wszEmptyString,false},{CHAR_FIELD,1,0,false}
-		,{BYTES_FIELD,sizeof(Uuid),wszEmptyString,false},{BYTES_FIELD,1,0,false}
-		,{NUMBER_FIELD,sizeof(dwLicenseID),wszEmptyString,false},{CHAR_FIELD,1,0,false}
-		,{NUMBER_FIELD,sizeof(dwColor),wszEmptyString,false},{BYTES_FIELD,1,0,false}
-		,{BYTES_FIELD,sizeof(SYSTEMTIME)+sizeof(WORD),wszEmptyString,false}, {STRING_FIELD,0,0,false}//No Message Board messages
-		,{NUMBER_FIELD, sizeof(cPubLen),wszEmptyString,false}};
+	MSG_FIELD_OUT fields1[16] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0},{CHAR_FIELD,1,0},{CHAR_FIELD,1,0}
+		,{BYTES_FIELD,1,0},{NUMBER_FIELD,sizeof(ver),wszEmptyString},{CHAR_FIELD,1,0}
+		,{BYTES_FIELD,sizeof(Uuid),wszEmptyString},{BYTES_FIELD,1,0}
+		,{NUMBER_FIELD,sizeof(dwLicenseID),wszEmptyString},{CHAR_FIELD,1,0}
+		,{NUMBER_FIELD,sizeof(dwColor),wszEmptyString},{BYTES_FIELD,1,0}
+		,{BYTES_FIELD,sizeof(SYSTEMTIME)+sizeof(WORD),wszEmptyString}, {STRING_FIELD,0,0}//No Message Board messages
+		,{NUMBER_FIELD, sizeof(cPubLen),wszEmptyString}};
 
 	size_t result = parseMessageFields(seek, len, fields1, _ARRAYSIZE(fields1));
 	if(result<1) return false;
@@ -672,7 +668,7 @@ bool ProcessorMsgX::processReplyList1(const char* pmsg, size_t msglen, const net
 	}
 
 	//to prevent deleting fields2[0].data.bytes_ when going out of scope
-	MSG_FIELD fields2[2] = {{BYTES_FIELD, cPubLen,0,false},{BYTES_FIELD, sizeof(byteIcon),0,false}};
+	MSG_FIELD_OUT fields2[2] = {{BYTES_FIELD, cPubLen,0},{BYTES_FIELD, sizeof(byteIcon),0}};
 
 	unsigned char* pub_key = 0;
 	bool bSignature = false;
@@ -684,7 +680,7 @@ bool ProcessorMsgX::processReplyList1(const char* pmsg, size_t msglen, const net
 		const char* psig_len = seek + len - sizeof(WORD);
 		//WORD sig_len = *((WORD*)psig_len);
 		
-		MSG_FIELD sig_len_fields[1] = {{NUMBER_FIELD,sizeof(WORD),wszEmptyString,false}};
+		MSG_FIELD_OUT sig_len_fields[1] = {{NUMBER_FIELD,sizeof(WORD),wszEmptyString}};
 		size_t sig_result = parseMessageFields(psig_len, sizeof(WORD), sig_len_fields, _ARRAYSIZE(sig_len_fields));
 		WORD sig_len = *(WORD*)sig_len_fields[0].data.bytes_;
 
@@ -755,7 +751,7 @@ bool ProcessorMsgX::processReplyList1(const char* pmsg, size_t msglen, const net
 	ptrUserInfo->pub_key = std::unique_ptr<unsigned char[]>(pub_key);
 	ptrUserInfo->icon = byteIcon;
 
-	networkio::NETADDR_INFO::assign_from_receiver(ptrUserInfo->naddr_info, pcrcvr);
+	ptrUserInfo->naddr_info.assign_from_receiver(pcrcvr);
 
 	//avoid destruction from
 	fields1[1].data.wsz_ = 0;
@@ -781,7 +777,7 @@ bool ProcessorMsgX::processChannelMsg2A(const char* pmsg, size_t msglen, bool fM
 
 	/*'2' Channel h00 From h00 MessageText h00 Signature*/
 	/*'A' Channel h00 From h00 MessageText h00 Signature*/
-	MSG_FIELD fields[4] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{SIGNATURE_FIELD,0,0,false}};
+	MSG_FIELD_OUT fields[4] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0},{STRING_FIELD,0,0},{SIGNATURE_FIELD,0,0}};
 
 	if(parseMessageFields(seek, len, fields, _ARRAYSIZE(fields))<1) return false;
 
@@ -848,7 +844,7 @@ bool ProcessorMsgX::processNickName3(const char* pmsg, size_t msglen)
 	const size_t len = msglen-1;
 
 	/*'3' From h00 NewNick h00 Gender Signature*/
-	MSG_FIELD fields[4] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{CHAR_FIELD,1,0,false},{SIGNATURE_FIELD,0,0,false}};
+	MSG_FIELD_OUT fields[4] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0},{CHAR_FIELD,1,0},{SIGNATURE_FIELD,0,0}};
 	size_t result = parseMessageFields(seek, len, fields, _ARRAYSIZE(fields));
 	if(result<1) return false;
 
@@ -920,9 +916,9 @@ bool ProcessorMsgX::processJoin4(const char* pmsg, size_t msglen, const networki
 	const char* seek = pmsg+1;
 	size_t len = msglen-1;
 
-	MSG_FIELD fields1[4] = {{STRING_FIELD,0,0,false}
-			,{STRING_FIELD,0,0,false}
-			,{CHAR_FIELD,1,0,false},{CHAR_FIELD,1,0,false}};
+	MSG_FIELD_OUT fields1[4] = {{STRING_FIELD,0,0}
+			,{STRING_FIELD,0,0}
+			,{CHAR_FIELD,1,0},{CHAR_FIELD,1,0}};
 
 	size_t result = parseMessageFields(seek, len, fields1, _ARRAYSIZE(fields1));
 	if(result<1) return false;
@@ -958,7 +954,7 @@ bool ProcessorMsgX::processJoin4(const char* pmsg, size_t msglen, const networki
 	bool bSignature = false;
 
 	//to prevent deleting fields3[0].data.bytes_ when going out of scope
-	MSG_FIELD fields3[2] = {{BYTES_FIELD, cPubLen,0,false},{BYTES_FIELD, sizeof(byteIcon),0,false}};
+	MSG_FIELD_OUT fields3[2] = {{BYTES_FIELD, cPubLen,0},{BYTES_FIELD, sizeof(byteIcon),0}};
 
 	const int min_info_len = 1+sizeof(ver)+sizeof(Uuid)+1+1+sizeof(dwColor)+1;
 	if(len>result+min_info_len-1)
@@ -968,13 +964,13 @@ bool ProcessorMsgX::processJoin4(const char* pmsg, size_t msglen, const networki
 		seek+= result;
 		len-= result;
 
-		MSG_FIELD fields2[10] = {{BYTES_FIELD,1,0,false}
-					,{NUMBER_FIELD,sizeof(ver),wszEmptyString,false}
-					,{BYTES_FIELD,sizeof(Uuid),wszEmptyString,false}
-					,{CHAR_FIELD,1,0,false}
-					,{CHAR_FIELD,1,0,false},{NUMBER_FIELD,sizeof(dwColor),wszEmptyString,false},{BYTES_FIELD,1,0,false}
-					,{BYTES_FIELD,sizeof(SYSTEMTIME)+sizeof(WORD),wszEmptyString,false}, {STRING_FIELD,0,0,false}//No Message Board messages
-					,{NUMBER_FIELD, sizeof(cPubLen),wszEmptyString,false}};
+		MSG_FIELD_OUT fields2[10] = {{BYTES_FIELD,1,0}
+					,{NUMBER_FIELD,sizeof(ver),wszEmptyString}
+					,{BYTES_FIELD,sizeof(Uuid),wszEmptyString}
+					,{CHAR_FIELD,1,0}
+					,{CHAR_FIELD,1,0},{NUMBER_FIELD,sizeof(dwColor),wszEmptyString},{BYTES_FIELD,1,0}
+					,{BYTES_FIELD,sizeof(SYSTEMTIME)+sizeof(WORD),wszEmptyString}, {STRING_FIELD,0,0}//No Message Board messages
+					,{NUMBER_FIELD, sizeof(cPubLen),wszEmptyString}};
 
 		result = parseMessageFields(seek, len, fields2, _ARRAYSIZE(fields2));
 		if(result>0)
@@ -1015,7 +1011,7 @@ bool ProcessorMsgX::processJoin4(const char* pmsg, size_t msglen, const networki
 			{
 				const char* psig_len = seek + len - sizeof(WORD);
 				//WORD sig_len = *((WORD*)psig_len);
-				MSG_FIELD sig_len_fields[1] = {{NUMBER_FIELD,sizeof(WORD),wszEmptyString,false}};
+				MSG_FIELD_OUT sig_len_fields[1] = {{NUMBER_FIELD,sizeof(WORD),wszEmptyString}};
 				size_t sig_result = parseMessageFields(psig_len, sizeof(WORD), sig_len_fields, _ARRAYSIZE(sig_len_fields));
 				WORD sig_len = *(WORD*)sig_len_fields[0].data.bytes_;
 
@@ -1114,7 +1110,7 @@ bool ProcessorMsgX::processJoin4(const char* pmsg, size_t msglen, const networki
 	fields1[0].size = 0;
 	fields1[0].type = VOID_FIELD;
 
-	networkio::NETADDR_INFO::assign_from_receiver(ptrUserInfo->naddr_info, pcrcvr);
+	ptrUserInfo->naddr_info.assign_from_receiver(pcrcvr);
 
 	ptrUserInfo->status = status;
 	ptrUserInfo->gender = gender;
@@ -1138,7 +1134,7 @@ bool ProcessorMsgX::processLeave5(const char* pmsg, size_t msglen)
 	const size_t len = msglen-1;
 
 	/*'5' From h00 Channel h00 Gender Signature*/
-	MSG_FIELD fields[4] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{CHAR_FIELD,1,0,false},{SIGNATURE_FIELD,0,0,false}};
+	MSG_FIELD_OUT fields[4] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0},{CHAR_FIELD,1,0},{SIGNATURE_FIELD,0,0}};
 	size_t result = parseMessageFields(seek, len, fields, _ARRAYSIZE(fields));
 	if(result<1) return false;
 
@@ -1220,8 +1216,8 @@ bool ProcessorMsgX::processMassTextMsgConfirm7(const char* pmsg, size_t msglen)
 	/*'7' Status To h00 From h00 Gender CurrentAA h00
 		DatagramID h00
 	*/
-	MSG_FIELD fields[7] = {{CHAR_FIELD,1,0,false},{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{CHAR_FIELD,1,0,false},{STRING_FIELD,0,0,false},{BYTES_FIELD, 1,0,false}
-							,{STRING_FIELD,0,0,false}};
+	MSG_FIELD_OUT fields[7] = {{CHAR_FIELD,1,0},{STRING_FIELD,0,0},{STRING_FIELD,0,0},{CHAR_FIELD,1,0},{STRING_FIELD,0,0},{BYTES_FIELD, 1,0}
+							,{STRING_FIELD,0,0}};
 
 	size_t result = parseMessageFields(seek, len, fields, _ARRAYSIZE(fields));
 	if(result<1) return false;
@@ -1257,7 +1253,7 @@ bool ProcessorMsgX::processNewTopicB(const char* pmsg, size_t msglen, const netw
 	const size_t len = msglen-1;
 
 	/*'B' Channel h00 Topic ' (From) ' h00 Signature*/
-	MSG_FIELD fields[3] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{SIGNATURE_FIELD,0,0,false}};
+	MSG_FIELD_OUT fields[3] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0},{SIGNATURE_FIELD,0,0}};
 	size_t result = parseMessageFields(seek, len, fields, _ARRAYSIZE(fields));
 	if(result<1) return false;
 
@@ -1345,7 +1341,7 @@ bool ProcessorMsgX::processTopicC(const char* pmsg, size_t msglen)
 	const size_t len = msglen-1;
 
 	/*'C' To h00 Channel h00 Topic h00*/
-	MSG_FIELD fields[3] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false}};
+	MSG_FIELD_OUT fields[3] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0},{STRING_FIELD,0,0}};
 	size_t result = parseMessageFields(seek, len, fields, _ARRAYSIZE(fields));
 	if(result<1) return false;
 
@@ -1402,12 +1398,12 @@ bool ProcessorMsgX::processNewStatusD(const char* pmsg, size_t msglen)
 
 	const char* psig_len = seek + len - sizeof(WORD);
 	//WORD sig_len = *((WORD*)psig_len);
-	MSG_FIELD sig_len_fields[1] = {{NUMBER_FIELD,sizeof(WORD),wszEmptyString,false}};
+	MSG_FIELD_OUT sig_len_fields[1] = {{NUMBER_FIELD,sizeof(WORD),wszEmptyString}};
 	size_t sig_result = parseMessageFields(psig_len, sizeof(WORD), sig_len_fields, _ARRAYSIZE(sig_len_fields));
 	WORD sig_len = *(WORD*)sig_len_fields[0].data.bytes_;
 		
 	/*'D' From h00 Status Gender CurrentAA h00 Signature SignatureSize*/
-	MSG_FIELD fields[4] = {{STRING_FIELD,0,0,false},{CHAR_FIELD,1,0,false},{CHAR_FIELD,1,0,false},{STRING_FIELD,0,0,false}};
+	MSG_FIELD_OUT fields[4] = {{STRING_FIELD,0,0},{CHAR_FIELD,1,0},{CHAR_FIELD,1,0},{STRING_FIELD,0,0}};
 
 	if(parseMessageFields(seek, len - sig_len-sizeof(WORD), fields, _ARRAYSIZE(fields))<1) return false;
 
@@ -1464,7 +1460,7 @@ bool ProcessorMsgX::processMassTextMsgE(const char* pmsg, size_t msglen, const c
 	const size_t len = msglen-1;
 
 	/*'E' From h00 To h00 MessageText h00*/
-	MSG_FIELD fields[3] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false}};
+	MSG_FIELD_OUT fields[3] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0},{STRING_FIELD,0,0}};
 	size_t result = parseMessageFields(seek, len, fields, _ARRAYSIZE(fields));
 	if(result<1) return false;
 
@@ -1506,7 +1502,7 @@ bool ProcessorMsgX::processInfoF(const char* pmsg, size_t msglen)
 	const size_t len = msglen-1;
 
 	/*'F' To h00 From h00*/
-	MSG_FIELD fieldsF[2] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false}};
+	MSG_FIELD_OUT fieldsF[2] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0}};
 	size_t result = parseMessageFields(seek, len, fieldsF, _ARRAYSIZE(fieldsF));
 	if(result<1) return false;
 
@@ -1540,12 +1536,12 @@ bool ProcessorMsgX::processReplyInfoG(const char* pmsg, size_t msglen)
 	OS h00 Chat software h00
 	FullName h00 Job h00 Department h00 Work phone h00
 	Mobile phone h00 www h00 e-mail h00 address h00*/
-	MSG_FIELD fieldsG[18] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false}
-							,{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false}
-							,{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false}
-							,{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false}
-							,{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false}
-							,{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false}};
+	MSG_FIELD_OUT fieldsG[18] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0},{STRING_FIELD,0,0}
+							,{STRING_FIELD,0,0},{STRING_FIELD,0,0},{STRING_FIELD,0,0}
+							,{STRING_FIELD,0,0},{STRING_FIELD,0,0},{STRING_FIELD,0,0}
+							,{STRING_FIELD,0,0},{STRING_FIELD,0,0},{STRING_FIELD,0,0}
+							,{STRING_FIELD,0,0},{STRING_FIELD,0,0},{STRING_FIELD,0,0}
+							,{STRING_FIELD,0,0},{STRING_FIELD,0,0},{STRING_FIELD,0,0}};
 
 	size_t result = parseMessageFields(seek, len, fieldsG, _ARRAYSIZE(fieldsG));
 	if(result<1) return false;
@@ -1610,7 +1606,7 @@ bool ProcessorMsgX::processBeepH(const char* pmsg, size_t msglen)
 	const size_t len = msglen-1;
 
 	/*'H' '0' To h00 From h00*/
-	MSG_FIELD fieldsH[3] = {{CHAR_FIELD,1,0,false},{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false}};
+	MSG_FIELD_OUT fieldsH[3] = {{CHAR_FIELD,1,0},{STRING_FIELD,0,0},{STRING_FIELD,0,0}};
 	size_t result = parseMessageFields(seek, len, fieldsH, _ARRAYSIZE(fieldsH));
 	if(result<1) return false;
 
@@ -1659,7 +1655,7 @@ bool ProcessorMsgX::processReplyHereK(const char* pmsg, size_t msglen, const net
 	const size_t len = msglen-1;
 
 	/*'K' To h00 Channel h00 From h00 RemoteActive*/
-	MSG_FIELD fields[4] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{CHAR_FIELD,1,0,false}};
+	MSG_FIELD_OUT fields[4] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0},{STRING_FIELD,0,0},{CHAR_FIELD,1,0}};
 	size_t result = parseMessageFields(seek, len, fields, _ARRAYSIZE(fields));
 	if(result<1) return false;
 
@@ -1696,7 +1692,7 @@ bool ProcessorMsgX::processReplyHereK(const char* pmsg, size_t msglen, const net
 		ptrUserInfo = std::make_shared<USER_INFO>();
 		ptrUserInfo->setNick(from);
 
-		networkio::NETADDR_INFO::assign_from_receiver(ptrUserInfo->naddr_info, pcrcvr);
+		ptrUserInfo->naddr_info.assign_from_receiver(pcrcvr);
 
 		USER_INFO::SetOfUsers_.insert(ptrUserInfo);
 
@@ -1716,7 +1712,7 @@ bool ProcessorMsgX::processHereL(const char* pmsg, size_t msglen, const networki
 	const size_t len = msglen-1;
 
 	/*'L' From h00 Channel h00*/
-	MSG_FIELD fieldsL[2] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false}};
+	MSG_FIELD_OUT fieldsL[2] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0}};
 	size_t result = parseMessageFields(seek, len, fieldsL, _ARRAYSIZE(fieldsL));
 	if(result<1) return false;
 
@@ -1750,7 +1746,7 @@ bool ProcessorMsgX::processHereL(const char* pmsg, size_t msglen, const networki
 		ptrUserInfo = std::make_shared<USER_INFO>();
 		ptrUserInfo->setNick(from);
 
-		networkio::NETADDR_INFO::assign_from_receiver(ptrUserInfo->naddr_info, pcrcvr);
+		ptrUserInfo->naddr_info.assign_from_receiver(pcrcvr);
 
 		USER_INFO::SetOfUsers_.insert(ptrUserInfo);
 
@@ -1771,7 +1767,7 @@ bool ProcessorMsgX::processWndStateM(const char* pmsg, size_t msglen)
 	const size_t len = msglen-1;
 
 	/*'M' From h00 WndActive*/
-	MSG_FIELD fields[2] = {{STRING_FIELD,0,0,false},{CHAR_FIELD,1,0,false}};
+	MSG_FIELD_OUT fields[2] = {{STRING_FIELD,0,0},{CHAR_FIELD,1,0}};
 	size_t result = parseMessageFields(seek, len, fields, _ARRAYSIZE(fields));
 	if(result<1) return false;
 
@@ -1801,7 +1797,7 @@ bool ProcessorMsgX::processChannelsN(const char* pmsg, size_t msglen)
 	const char* seek = pmsg+1;
 	const size_t len = msglen-1;
 	/*'N' From h00*/
-	MSG_FIELD fields[1] = {{STRING_FIELD,0,0,false}};
+	MSG_FIELD_OUT fields[1] = {{STRING_FIELD,0,0}};
 	size_t result = parseMessageFields(seek, len, fields, _ARRAYSIZE(fields));
 	if(result<1) return false;
 
@@ -1830,7 +1826,7 @@ bool ProcessorMsgX::processReplyChannelsO(const char* pmsg, size_t msglen, const
 	const char* seek = pmsg+1;
 	const size_t len = msglen-1;
 	/*'O' To h00 ListOfChannels '#'*/
-	MSG_FIELD fields[2] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false}};
+	MSG_FIELD_OUT fields[2] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0}};
 	size_t result = parseMessageFields(seek, len, fields, _ARRAYSIZE(fields));
 	if(result<1) return false;
 
@@ -1913,10 +1909,10 @@ bool ProcessorMsgX::processPingPongP(const char* pmsg, size_t msglen)
 	size_t len = msglen-1;
 	/*'P' '0' To h00 From h00 CurrentTime h00
 	LastMsgBoardMessage TotalMsgBoardMessages MsgBoardMessageIDs h00 PubKeySize PubKey*/
-	MSG_FIELD fieldsP1[4] = {{CHAR_FIELD,1,0,false}
-						,{STRING_FIELD,0,0,false}
-						,{STRING_FIELD,0,0,false}
-						,{STRING_FIELD,0,0,false}};
+	MSG_FIELD_OUT fieldsP1[4] = {{CHAR_FIELD,1,0}
+						,{STRING_FIELD,0,0}
+						,{STRING_FIELD,0,0}
+						,{STRING_FIELD,0,0}};
 
 	size_t result = parseMessageFields(seek, len, fieldsP1, _ARRAYSIZE(fieldsP1));
 	if(result<1) return false;
@@ -1965,8 +1961,8 @@ bool ProcessorMsgX::processPingPongP(const char* pmsg, size_t msglen)
 	WORD cPubLen = 0;
 	if(len>result)
 	{
-		MSG_FIELD fieldsP2[3] = {{BYTES_FIELD,sizeof(SYSTEMTIME)+sizeof(WORD),0,false}, {STRING_FIELD,0,0,false}//No Message Board messages
-							,{NUMBER_FIELD, sizeof(cPubLen),wszEmptyString,false}};
+		MSG_FIELD_OUT fieldsP2[3] = {{BYTES_FIELD,sizeof(SYSTEMTIME)+sizeof(WORD),0}, {STRING_FIELD,0,0}//No Message Board messages
+							,{NUMBER_FIELD, sizeof(cPubLen),wszEmptyString}};
 
 		result = parseMessageFields(seek, len, fieldsP2, _ARRAYSIZE(fieldsP2));
 		if(result<1) return false;
@@ -2001,7 +1997,7 @@ bool ProcessorMsgX::processChangeNickNameU(const char* pmsg, size_t msglen)
 	const size_t len = msglen-1;
 
 	/*'U' From h00 CodePage h00*/
-	MSG_FIELD fields[2] = {{STRING_FIELD,0,0,false},{CHAR_FIELD,0,0,false}};
+	MSG_FIELD_OUT fields[2] = {{STRING_FIELD,0,0},{CHAR_FIELD,0,0}};
 	size_t result = parseMessageFields(seek, len, fields, _ARRAYSIZE(fields));
 	if(result<1) return false;
 
@@ -2022,7 +2018,7 @@ bool ProcessorMsgX::processChangeNickNameU(const char* pmsg, size_t msglen)
 		return true;
 	}
 
-	std::wstring wszFromAddr = networkio::sockaddr_to_string(pUserInfo->naddr_info.psaddr_, sizeof(sockaddr_in6));
+	std::wstring wszFromAddr = networkio::sockaddr_to_string(pUserInfo->naddr_info.get_saddr(), sizeof(sockaddr_in6));
 	consoleio::print_line(pUserInfo->color, false, wszRequireToChangeNick, theApp.getStrTime(), from, wszFromAddr.c_str());
 	return true;
 }
@@ -2033,7 +2029,7 @@ bool ProcessorMsgX::processFloodZ(const char* pmsg, size_t msglen)
 	const size_t len = msglen-1;
 
 	/*'Z' To h00 From h00 Количество секунд h00*/
-	MSG_FIELD fields[3] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false}};
+	MSG_FIELD_OUT fields[3] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0},{STRING_FIELD,0,0}};
 	size_t result = parseMessageFields(seek, len, fields, _ARRAYSIZE(fields));
 	if(result<1) return false;
 
@@ -2065,7 +2061,7 @@ bool ProcessorMsgX::processSecureChannelMsgQ01(const char* pmsg, size_t msglen, 
 	WORD MessageTextLentgh = 0;
 
 	/*'Q' '0' Channel h00 From h00 MessageTextLentgh MessageText h00 SignatureSize Signature*/
-	MSG_FIELD fieldsQ00[3] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{LEN_OF_STRING_FIELD, sizeof(MessageTextLentgh),0,false}};
+	MSG_FIELD_OUT fieldsQ00[3] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0},{LEN_OF_STRING_FIELD, sizeof(MessageTextLentgh),0}};
 
 	size_t result1 = parseMessageFields(seek, len, fieldsQ00, _ARRAYSIZE(fieldsQ00));
 	if(result1<1) return false;
@@ -2106,7 +2102,7 @@ bool ProcessorMsgX::processSecureChannelMsgQ01(const char* pmsg, size_t msglen, 
 	}
 
 	WORD sig_len = 0;
-	MSG_FIELD fieldsQ01[2] = {{STRING_FIELD,MessageTextLentgh,0,false},{NUMBER_FIELD, sizeof(sig_len),0,false}};
+	MSG_FIELD_OUT fieldsQ01[2] = {{STRING_FIELD,MessageTextLentgh,0},{NUMBER_FIELD, sizeof(sig_len),0}};
 	size_t result2 = parseMessageFields(seek, len, fieldsQ01, _ARRAYSIZE(fieldsQ01));
 	if(result2<1) return false;
 
@@ -2160,7 +2156,7 @@ bool ProcessorMsgX::processSecureTopicMsgQ23(const char* pmsg, size_t msglen, co
 	WORD TopicLentgh = 0;
 
 	/*'Q' '3' Channel h00 TopicLength Topic ' (From) ' SignatureSize Signature*/
-	MSG_FIELD fieldsQ30[2] = {{STRING_FIELD,0,0,false}, {LEN_OF_STRING_FIELD, sizeof(TopicLentgh),0,false}};
+	MSG_FIELD_OUT fieldsQ30[2] = {{STRING_FIELD,0,0}, {LEN_OF_STRING_FIELD, sizeof(TopicLentgh),0}};
 
 	size_t result1 = parseMessageFields(seek, len, fieldsQ30, _ARRAYSIZE(fieldsQ30));
 	if(result1<1) return false;
@@ -2226,7 +2222,7 @@ bool ProcessorMsgX::processSecureTopicMsgQ23(const char* pmsg, size_t msglen, co
 	}
 
 	WORD sig_len =0;
-	MSG_FIELD fieldsQ31[2] = {{STRING_FIELD,TopicLentgh,0,false},{NUMBER_FIELD, sizeof(sig_len),0,false}};
+	MSG_FIELD_OUT fieldsQ31[2] = {{STRING_FIELD,TopicLentgh,0},{NUMBER_FIELD, sizeof(sig_len),0}};
 
 	size_t result2 = parseMessageFields(seek, len, fieldsQ31, _ARRAYSIZE(fieldsQ31));
 	if(result2<1) return false;
@@ -2319,7 +2315,7 @@ bool ProcessorMsgX::processReplySecureHereQ4(const char* pmsg, size_t msglen)
 	size_t len = msglen-1;
 
 	/*'Q' '4' To h00 Channel h00 From h00 RemoteActive Signature SignatureSize*/
-	MSG_FIELD fieldsQ4[4] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{CHAR_FIELD,1,0,false}};
+	MSG_FIELD_OUT fieldsQ4[4] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0},{STRING_FIELD,0,0},{CHAR_FIELD,1,0}};
 	size_t result = parseMessageFields(seek, len, fieldsQ4, _ARRAYSIZE(fieldsQ4));
 	if(result<1) return false;
 
@@ -2351,7 +2347,7 @@ bool ProcessorMsgX::processReplySecureHereQ4(const char* pmsg, size_t msglen)
 	{
 		const char* psig_len = seek + len - sizeof(WORD);
 		//WORD sig_len = *((WORD*)psig_len);
-		MSG_FIELD sig_len_fields[1] = {{NUMBER_FIELD,sizeof(WORD),wszEmptyString,false}};
+		MSG_FIELD_OUT sig_len_fields[1] = {{NUMBER_FIELD,sizeof(WORD),wszEmptyString}};
 		size_t sig_result = parseMessageFields(psig_len, sizeof(WORD), sig_len_fields, _ARRAYSIZE(sig_len_fields));
 		WORD sig_len = *(WORD*)sig_len_fields[0].data.bytes_;
 	
@@ -2386,7 +2382,7 @@ bool ProcessorMsgX::processSecureJoinQ5(const char* pmsg, size_t msglen)
 	size_t len = msglen-1;
 
 	/*'Q' '5' From h00 Channel h00 Status Gender (16)MD5Hash Signature SignatureSize*/
-	MSG_FIELD fieldsQ5[5] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{CHAR_FIELD,1,0,false},{CHAR_FIELD,1,0,false},{BYTES_FIELD,16,0,false}};
+	MSG_FIELD_OUT fieldsQ5[5] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0},{CHAR_FIELD,1,0},{CHAR_FIELD,1,0},{BYTES_FIELD,16,0}};
 	size_t result = parseMessageFields(seek, len, fieldsQ5, _ARRAYSIZE(fieldsQ5));
 	if(result<1) return false;
 
@@ -2446,7 +2442,7 @@ bool ProcessorMsgX::processSecureJoinQ5(const char* pmsg, size_t msglen)
 	{
 		const char* psig_len = seek + len - sizeof(WORD);
 		//WORD sig_len = *((WORD*)psig_len);
-		MSG_FIELD sig_len_fields[1] = {{NUMBER_FIELD,sizeof(WORD),wszEmptyString,false}};
+		MSG_FIELD_OUT sig_len_fields[1] = {{NUMBER_FIELD,sizeof(WORD),wszEmptyString}};
 		size_t sig_result = parseMessageFields(psig_len, sizeof(WORD), sig_len_fields, _ARRAYSIZE(sig_len_fields));
 		WORD sig_len = *(WORD*)sig_len_fields[0].data.bytes_;
 	
@@ -2509,7 +2505,7 @@ bool ProcessorMsgX::processReplySecureJoinQ6(const char* pmsg, size_t msglen, co
 	size_t len = msglen-1;
 
 	/*'Q' '6' To h00 Channel h00 Result Signature SignatureSize*/
-	MSG_FIELD fieldsQ6[3] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{CHAR_FIELD,1,0,false}};
+	MSG_FIELD_OUT fieldsQ6[3] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0},{CHAR_FIELD,1,0}};
 	size_t result = parseMessageFields(seek, len, fieldsQ6, _ARRAYSIZE(fieldsQ6));
 	if(result<1) return false;
 
@@ -2545,7 +2541,7 @@ bool ProcessorMsgX::processReplySecureJoinQ6(const char* pmsg, size_t msglen, co
 	{
 		const char* psig_len = seek + len - sizeof(WORD);
 		//WORD sig_len = *((WORD*)psig_len);
-		MSG_FIELD sig_len_fields[1] = {{NUMBER_FIELD,sizeof(WORD),wszEmptyString,false}};
+		MSG_FIELD_OUT sig_len_fields[1] = {{NUMBER_FIELD,sizeof(WORD),wszEmptyString}};
 		size_t sig_result = parseMessageFields(psig_len, sizeof(WORD), sig_len_fields, _ARRAYSIZE(sig_len_fields));
 		WORD sig_len = *(WORD*)sig_len_fields[0].data.bytes_;
 	
@@ -2602,7 +2598,7 @@ bool ProcessorMsgX::processSecureLeaveQ7(const char* pmsg, size_t msglen)
 	size_t len = msglen-1;
 
 	/*'Q' '7' From h00 Channel h00 Gender Signature SignatureSize*/
-	MSG_FIELD fieldsQ7[3] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false},{CHAR_FIELD,1,0,false}};
+	MSG_FIELD_OUT fieldsQ7[3] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0},{CHAR_FIELD,1,0}};
 	size_t result = parseMessageFields(seek, len, fieldsQ7, _ARRAYSIZE(fieldsQ7));
 	if(result<1) return false;
 
@@ -2631,7 +2627,7 @@ bool ProcessorMsgX::processSecureLeaveQ7(const char* pmsg, size_t msglen)
 	{
 		const char* psig_len = seek + len - sizeof(WORD);
 		//WORD sig_len = *((WORD*)psig_len);
-		MSG_FIELD sig_len_fields[1] = {{NUMBER_FIELD,sizeof(WORD),wszEmptyString,false}};
+		MSG_FIELD_OUT sig_len_fields[1] = {{NUMBER_FIELD,sizeof(WORD),wszEmptyString}};
 		size_t sig_result = parseMessageFields(psig_len, sizeof(WORD), sig_len_fields, _ARRAYSIZE(sig_len_fields));
 		WORD sig_len = *(WORD*)sig_len_fields[0].data.bytes_;
 	
@@ -2677,7 +2673,7 @@ bool ProcessorMsgX::processSecureHereQ8(const char* pmsg, size_t msglen)
 	size_t len = msglen-1;
 
 	/*'Q' '8' From h00 Channel h00 Signature SignatureSize*/
-	MSG_FIELD fieldsQ8[2] = {{STRING_FIELD,0,0,false},{STRING_FIELD,0,0,false}};
+	MSG_FIELD_OUT fieldsQ8[2] = {{STRING_FIELD,0,0},{STRING_FIELD,0,0}};
 	size_t result = parseMessageFields(seek, len, fieldsQ8, _ARRAYSIZE(fieldsQ8));
 	if(result<1) return false;
 
@@ -2717,7 +2713,7 @@ bool ProcessorMsgX::processSecureHereQ8(const char* pmsg, size_t msglen)
 	{
 		const char* psig_len = seek + len - sizeof(WORD);
 		//WORD sig_len = *((WORD*)psig_len);
-		MSG_FIELD sig_len_fields[1] = {{NUMBER_FIELD,sizeof(WORD),wszEmptyString,false}};
+		MSG_FIELD_OUT sig_len_fields[1] = {{NUMBER_FIELD,sizeof(WORD),wszEmptyString}};
 		size_t sig_result = parseMessageFields(psig_len, sizeof(WORD), sig_len_fields, _ARRAYSIZE(sig_len_fields));
 		WORD sig_len = *(WORD*)sig_len_fields[0].data.bytes_;
 	

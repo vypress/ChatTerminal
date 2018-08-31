@@ -46,7 +46,7 @@ private:
 	@nFields - number of fields in the pFields array
 	@return - number of successfully parsed bytes
 	*/
-	size_t parseMessageFields(const char* pMessage, size_t len, MSG_FIELD* pFields, int nFields);
+	size_t parseMessageFields(const char* pMessage, size_t len, MSG_FIELD_OUT* pFields, int nFields);
 
 	/**
 	Veryfies an MD5 digital signature of a message

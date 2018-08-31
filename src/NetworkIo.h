@@ -68,20 +68,26 @@ namespace networkio
 	class Interface
 	{
 	public:
+		Interface(const Interface&) = delete;
+		Interface& operator = (const Interface&) = delete;
+
 		Interface(const wchar_t* wszAddress, int ai_family);
-		Interface(const addrinfo* pai, unsigned int if6index);
+		Interface(addrinfo* pai, unsigned int if6index);
 #ifndef CHATTERM_OS_WINDOWS
 		Interface(const sockaddr* pcaddr, unsigned int if6index);
 #endif // CHATTERM_OS_WINDOWS
 
 		~Interface(void)
 		{
+			freeaddrinfo(pai_);
+			/*
 			if(pai_ && (pai_ != paibuf_) ) freeaddrinfo(pai_);
 			if(paibuf_)
 			{
 				delete[] paibuf_->ai_addr;
-				delete paibuf_;
+				delete reinterpret_cast<unsigned char*>(paibuf_);
 			}
+			*/
 		}
 
 		std::wstring getStringAddress(unsigned short port);
@@ -299,29 +305,29 @@ namespace networkio
 	class NETADDR_INFO
 	{
 	public:
-		NETADDR_INFO() : preceiver_(0), psaddr_(0)
+		NETADDR_INFO() : preceiver_(0)
 		{
-			psaddr_ = reinterpret_cast<sockaddr*>(new sockaddr_in6);
-			memset(psaddr_, 0x00, sizeof(sockaddr_in6));
+			memset(&saddr_, 0x00, sizeof(saddr_));
 		}
 
-		~NETADDR_INFO()
-		{
-			delete reinterpret_cast<sockaddr_in6*>(psaddr_);
-		}
+		//network address structure represents network address of the recipient;
+		sockaddr_in6 saddr_;
 
 		// Pointer to a receiver object which UDP datagrams from the recipient received
 		const Receiver* preceiver_;
 
-		// Pointer to network address structure represents network address of the recipient;
+		// Return a pointer to network address structure represents network address of the recipient;
 		// Network address can be a link local or site local address
-		sockaddr* psaddr_;
-
-		static void assign_from_receiver(NETADDR_INFO& naddr_info, const Receiver* pcrcvr)
+		const sockaddr* get_saddr() const
 		{
-			naddr_info.preceiver_ = pcrcvr;
-			memcpy(naddr_info.psaddr_, &pcrcvr->from_addr_, sizeof(sockaddr_in6));
-			set_port(naddr_info.psaddr_, pcrcvr->port_);
+			return reinterpret_cast<const sockaddr*>(&saddr_);
+		};
+
+		void assign_from_receiver(const Receiver* pcrcvr)
+		{
+			preceiver_ = pcrcvr;
+			memcpy(&saddr_, &pcrcvr->from_addr_, sizeof(sockaddr_in6));
+			set_port(reinterpret_cast<sockaddr*>(&saddr_), pcrcvr->port_);
 		}
 
 		static bool compare_with_receiver(NETADDR_INFO& naddr_info, const Receiver* prcvr)
@@ -329,11 +335,11 @@ namespace networkio
 			if(naddr_info.preceiver_ != prcvr) return false;
 
 			//return compare_sockaddr(&naddr_info.saddr_,& prcvr->from_addr_);
-			switch(naddr_info.psaddr_->sa_family)
+			switch(naddr_info.get_saddr()->sa_family)
 			{
 			case AF_INET:
 				{
-					const sockaddr_in* p1 = reinterpret_cast<const sockaddr_in*>(naddr_info.psaddr_);
+					const sockaddr_in* p1 = reinterpret_cast<const sockaddr_in*>(naddr_info.get_saddr());
 					const sockaddr_in* p2 = reinterpret_cast<const sockaddr_in*>(&prcvr->from_addr_);
 
 					return 0==memcmp(&p1->sin_addr, &p2->sin_addr, sizeof(p1->sin_addr));
@@ -342,7 +348,7 @@ namespace networkio
 
 			case AF_INET6:
 				{
-					const sockaddr_in6* p1 = reinterpret_cast<const sockaddr_in6*>(naddr_info.psaddr_);
+					const sockaddr_in6* p1 = reinterpret_cast<const sockaddr_in6*>(naddr_info.get_saddr());
 					const sockaddr_in6* p2 = reinterpret_cast<const sockaddr_in6*>(&prcvr->from_addr_);
 
 					return 0==memcmp(&p1->sin6_addr, &p2->sin6_addr, sizeof(p1->sin6_addr));
@@ -350,7 +356,7 @@ namespace networkio
 				break;
 			}
 
-			return 0==memcmp(naddr_info.psaddr_, &prcvr->from_addr_, sizeof(sockaddr_in6));
+			return 0==memcmp(naddr_info.get_saddr(), &prcvr->from_addr_, sizeof(sockaddr_in6));
 		}
 
 		static void set_port(sockaddr* paddr, unsigned short port)
@@ -380,23 +386,23 @@ namespace networkio
 	*/
 	struct DESTADDR_INFO
 	{
-		DESTADDR_INFO(const Sender* psender) : psender_(psender), psaddr_(reinterpret_cast<sockaddr*>(new sockaddr_in6))
+		DESTADDR_INFO(const Sender* psender) : psender_(psender)
 		{
-			memset(psaddr_, 0x00, sizeof(sockaddr_in6));
+			memset(&saddr_, 0x00, sizeof(sockaddr_in6));
 		}
 
-		~DESTADDR_INFO()
-		{
-			delete reinterpret_cast<sockaddr_in6*>(psaddr_);
-		}
+		sockaddr_in6 saddr_;
 
 		int bindToAddress(const wchar_t* wszAddress, unsigned short port);
 
 		// Pointer to a sender object for sending broadcast or multicast UDP datagrams
 		const Sender* psender_;
 
-		// Pointer to network address structure represents broadcast or multicast address
+		// returns a pointer to network address structure represents broadcast or multicast address
 		// Network address can be a link local or site local address
-		sockaddr* psaddr_;
+		sockaddr* get_saddr()
+		{
+			return reinterpret_cast<sockaddr*>(&saddr_);
+		}
 	};
 }

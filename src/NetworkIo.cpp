@@ -212,8 +212,8 @@ namespace networkio
 
 	std::unique_ptr<Interface> get_interface_by_adapter_name(const wchar_t* aname, const wchar_t* desired_addr, int ai_family)
 	{
-		if(!aname) return false;
-		if(ai_family != AF_INET && ai_family != AF_INET6) return false;
+		if(!aname) return nullptr;
+		if(ai_family != AF_INET && ai_family != AF_INET6) return nullptr;
 
 		struct addrinfo hints = {0};
 		hints.ai_flags = AI_NUMERICHOST;
@@ -233,8 +233,8 @@ namespace networkio
 			}
 
 			int res = getaddrinfo(ptrAddress.get(), "0"/*any port*/, &hints, &pai);
-			if(0 != res) return false;
-			if(0 == pai) return false;
+			if(0 != res) return nullptr;
+			if(0 == pai) return nullptr;
 		}
 
 		/*
@@ -321,7 +321,6 @@ namespace networkio
 										unsigned long if6index = ai_family == AF_INET6 ? pAddresses->Ipv6IfIndex : 0;
 										std::unique_ptr<Interface> ptrI = std::make_unique<Interface>(pai, if6index);
 
-										freeaddrinfo(pai);
 										if(hinstLib) FreeLibrary(hinstLib);
 										return ptrI;
 									}
@@ -340,7 +339,6 @@ namespace networkio
 
 											std::unique_ptr<Interface> ptrI = std::make_unique<Interface>(pai, if6index);
 
-											freeaddrinfo(pai);
 											if(hinstLib) FreeLibrary(hinstLib);
 											return ptrI;
 										}
@@ -392,7 +390,6 @@ namespace networkio
 											{
 												std::unique_ptr<Interface> ptrI = std::make_unique<Interface>(pai, 0);
 
-												freeaddrinfo(pai);
 												if(hinstLib) FreeLibrary(hinstLib);
 												return ptrI;
 											}
@@ -409,7 +406,6 @@ namespace networkio
 										{
 											std::unique_ptr<Interface> ptrI = std::make_unique<Interface>(pai, 0);
 
-											freeaddrinfo(pai);
 											if(hinstLib) FreeLibrary(hinstLib);
 											return ptrI;
 										}
@@ -1086,9 +1082,9 @@ namespace networkio
 
 		if(0 != result) return false;
 
-		const struct addrinfo* ai_next = pres_addr;
-		const struct addrinfo* ai_next4 = 0;
-		const struct addrinfo* ai_next6 = 0;
+		struct addrinfo* ai_next = pres_addr;
+		struct addrinfo* ai_next4 = 0;
+		struct addrinfo* ai_next6 = 0;
 
 		if(Receiver::debug_)
 		{
@@ -1185,7 +1181,8 @@ namespace networkio
 
 		const wchar_t* wszMcastAddress =  ai_next->ai_family == AF_INET6 ? DEFAULT_MCAST_ADDR_V6 : DEFAULT_MCAST_ADDR;
 		
-		freeaddrinfo(pres_addr);
+		if(ai_next!= pres_addr)
+			freeaddrinfo(pres_addr);
 
 		psref = std::make_shared<Sender>();
 		//unsigned short port = DEFAULT_PORT;
@@ -1252,8 +1249,9 @@ namespace networkio
 		}
 	}
 
-	Interface::Interface(const addrinfo* cpai, unsigned int if6index) : pai_(0), paibuf_(0), ipv6_if_index_(if6index)
+	Interface::Interface(addrinfo* pai, unsigned int if6index) : pai_(pai), paibuf_(0), ipv6_if_index_(if6index)
 	{
+		/*
 		paibuf_ = new addrinfo;
 		memcpy(paibuf_, cpai, sizeof(*paibuf_));
 
@@ -1265,6 +1263,7 @@ namespace networkio
 		paibuf_->ai_protocol = IPPROTO_UDP;
 		
 		pai_ = paibuf_;
+		*/
 
 		if(pai_ && (AF_INET6==pai_->ai_family) && pai_->ai_addr)
 		{
@@ -1558,7 +1557,7 @@ namespace networkio
 		{
 			ptrIf_ = ptrIf;
 
-			//get bound port number to from_addr_ for NETADDR_INFO::assign_from_receiver(ptrMe_->naddr_info, Receivers_.front());
+			//get bound port number to from_addr_ for ptrMe_->naddr_info.assign_from_receiver(Receivers_.front());
 			//in ChatTerminalApp::run()
 #ifdef CHATTERM_OS_WINDOWS
 			int saddr_len = sizeof(from_addr_);
@@ -2094,7 +2093,7 @@ namespace networkio
 
 		if(0 == result)
 		{
-			memcpy(psaddr_, pres_addr->ai_addr, __min(pres_addr->ai_addrlen, sizeof(sockaddr_in6)));
+			memcpy(get_saddr(), pres_addr->ai_addr, __min(pres_addr->ai_addrlen, sizeof(sockaddr_in6)));
 
 			freeaddrinfo(pres_addr);
 		}

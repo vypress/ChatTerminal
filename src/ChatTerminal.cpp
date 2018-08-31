@@ -2666,7 +2666,7 @@ void ChatTerminalApp::signalAlarm(int signo)
 				}
 				else
 				{
-					std::wstring wszFromAddr = networkio::sockaddr_to_string(pinfo->naddr_info.psaddr_, sizeof(sockaddr_in6));
+					std::wstring wszFromAddr = networkio::sockaddr_to_string(pinfo->naddr_info.get_saddr(), sizeof(sockaddr_in6));
 					consoleio::print_line( pinfo->color, false, wszUserDropped, getStrTime(true), pinfo->getNick(), wszFromAddr.c_str());
 
 					//delete *it;
@@ -2688,7 +2688,7 @@ void ChatTerminalApp::initialize()
 	//assign the first receiver as my
 	if(Receivers_.size())
 	{
-		networkio::NETADDR_INFO::assign_from_receiver(ptrMe_->naddr_info, Receivers_.front().get());
+		ptrMe_->naddr_info.assign_from_receiver(Receivers_.front().get());
 	}
 
 	//start receivers' threads

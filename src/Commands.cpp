@@ -277,10 +277,10 @@ int Commands::sendBroadcastMsg(const char* buf, int len)
 	bool result = true;
 	while(it!=end)
 	{
-		int send_result = (*it)->psender_->sendTo((*it)->psaddr_, buf, len);
+		int send_result = (*it)->psender_->sendTo((*it)->get_saddr(), buf, len);
 		if(send_result != len)
 		{
-			std::wstring wszToAddr = networkio::sockaddr_to_string((*it)->psaddr_, sizeof(sockaddr_in6));
+			std::wstring wszToAddr = networkio::sockaddr_to_string((*it)->get_saddr(), sizeof(sockaddr_in6));
 			consoleio::print_line( wszUnableToSendMsg, wszToAddr.c_str());
 
 			result = false;
@@ -367,7 +367,7 @@ int Commands::sendMsgTo(const char* buf, int len, const USER_INFO* pinfo, int de
 		return len;
 	}
 
-	return sendMsgToAddr(buf, len, pinfo->naddr_info.psaddr_, pinfo->naddr_info.preceiver_->getSender());
+	return sendMsgToAddr(buf, len, pinfo->naddr_info.get_saddr(), pinfo->naddr_info.preceiver_->getSender());
 }
 
 int Commands::sendMsgToAddr(const char* buf, int len, const sockaddr* paddr, const networkio::Sender* psndr)
@@ -396,7 +396,7 @@ DWORD Commands::byteToDwordColor(unsigned char color)
 	return dwColor;
 }
 
-std::tuple<std::unique_ptr<char[]>, int> Commands::createMessageFields(char chType, MSG_FIELD* pFields, int nFields)
+std::tuple<std::unique_ptr<char[]>, int> Commands::createMessageFields(char chType, MSG_FIELD_IN* pFields, int nFields)
 {
 	const size_t nSignatureLength = 128;//0x80;
 	const size_t nRequestOffset = 10;//10 - 'X'+DatagramID
@@ -446,8 +446,6 @@ std::tuple<std::unique_ptr<char[]>, int> Commands::createMessageFields(char chTy
 	
 	for(int i=0; i<nFields; i++)
 	{
-		pFields[i].delete_ = false;
-
 		switch(pFields[i].type)
 		{
 			case SIGNATURE_LEN_FIELD:
@@ -478,7 +476,7 @@ std::tuple<std::unique_ptr<char[]>, int> Commands::createMessageFields(char chTy
 			case STRING_FIELD:
 				{
 #ifdef CHATTERM_OS_WINDOWS
-					int nSizeInBytes = WideCharToMultiByte(CP_UTF8, 0, pFields[i].data.wsz_, -1, seek, static_cast<int>(pFields[i].size), 0, 0);
+					int nSizeInBytes = WideCharToMultiByte(CP_UTF8, 0, pFields[i].data.cwsz_, -1, seek, static_cast<int>(pFields[i].size), 0, 0);
 #else
 					size_t len = wcslen(pFields[i].data.wsz_);
 					size_t nSizeInBytes = NixHlpr.convWcharToUtf8(pFields[i].data.wsz_, len+1, reinterpret_cast<unsigned char*>(seek), pFields[i].size);
@@ -562,11 +560,11 @@ int Commands::SecureNewTopicQ3(const std::wstring& channel, const CHANNEL_INFO* 
 
 	WORD TopicLentgh = (WORD)wcslen(topic);
 	/*'Q' '3' Channel h00 TopicLength Topic ' (From) ' SignatureSize Signature*/
-	MSG_FIELD fieldsQ3[6] = {{CHAR_FIELD,1,0, false}
-							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
-							,{LEN_OF_STRING_FIELD, sizeof(TopicLentgh),0,false}
-							,{STRING_FIELD,(TopicLentgh+1)*sizeof(wchar_t),topic,false}
-							,{SIGNATURE_LEN_FIELD, sizeof(WORD),0,false}, {QSIGNATURE_FIELD, 0,0,false}};
+	MSG_FIELD_IN fieldsQ3[6] = {{CHAR_FIELD,1,0}
+							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str()}
+							,{LEN_OF_STRING_FIELD, sizeof(TopicLentgh),0}
+							,{STRING_FIELD,(TopicLentgh+1)*sizeof(wchar_t),topic}
+							,{SIGNATURE_LEN_FIELD, sizeof(WORD),0}, {QSIGNATURE_FIELD, 0,0}};
 
 	fieldsQ3[0].data.ch_ = '3';
 	fieldsQ3[2].data.bytes_ = (unsigned char*)&TopicLentgh;
@@ -595,11 +593,11 @@ int Commands::ReplySecureTopicQ2(const std::wstring&  channel, const CHANNEL_INF
 
 	WORD TopicLentgh = (WORD)wcslen(topic);
 	/*'Q' '2' Channel h00 TopicLength Topic SignatureSize Signature*/
-	MSG_FIELD fieldsQ2[6] = {{CHAR_FIELD,1,0,false}
-							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
-							,{LEN_OF_STRING_FIELD, sizeof(TopicLentgh),0,false}
-							,{STRING_FIELD,(wcslen(topic)+1)*sizeof(wchar_t),topic,false}
-							,{SIGNATURE_LEN_FIELD, sizeof(WORD),0,false}, {QSIGNATURE_FIELD, 0,0,false}};
+	MSG_FIELD_IN fieldsQ2[6] = {{CHAR_FIELD,1,0}
+							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str()}
+							,{LEN_OF_STRING_FIELD, sizeof(TopicLentgh),0}
+							,{STRING_FIELD,(wcslen(topic)+1)*sizeof(wchar_t),topic}
+							,{SIGNATURE_LEN_FIELD, sizeof(WORD),0}, {QSIGNATURE_FIELD, 0,0}};
 
 	fieldsQ2[0].data.ch_ = '2';
 	fieldsQ2[2].data.bytes_ = (unsigned char*)&TopicLentgh;
@@ -627,12 +625,12 @@ int Commands::ReplySecureHereQ4(const std::wstring& channel, const USER_INFO* pi
 	int send_err = -1;
 
 	/*'Q' '4' To h00 Channel h00 From h00 RemoteActive SignatureSize Signature*/
-	MSG_FIELD fieldsQ4[8] = {{CHAR_FIELD,1,0,false}
-							,{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick(),false}
-							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
-							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-							,{CHAR_FIELD,1,0,false}
-							,{QSIGNATURE_FIELD, 0,0,false},{SIGNATURE_LEN_FIELD, sizeof(WORD),0,false}};
+	MSG_FIELD_IN fieldsQ4[8] = {{CHAR_FIELD,1,0}
+							,{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick()}
+							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str()}
+							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+							,{CHAR_FIELD,1,0}
+							,{QSIGNATURE_FIELD, 0,0},{SIGNATURE_LEN_FIELD, sizeof(WORD),0}};
 
 	fieldsQ4[0].data.ch_ = '4';
 	fieldsQ4[4].data.ch_ = ACTIVE_CHANNEL_STATE;
@@ -667,10 +665,10 @@ int Commands::SecureHereQ8(const std::wstring& channel)
 	}
 
 	/*'Q' '8' From h00 Channel h00 Signature SignatureSize*/
-	MSG_FIELD fieldsQ8[5] = {{CHAR_FIELD,1,0,false}
-							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
-							,{QSIGNATURE_FIELD, 0,0,false}, {SIGNATURE_LEN_FIELD, sizeof(WORD),0,false}};
+	MSG_FIELD_IN fieldsQ8[5] = {{CHAR_FIELD,1,0}
+							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str()}
+							,{QSIGNATURE_FIELD, 0,0}, {SIGNATURE_LEN_FIELD, sizeof(WORD),0}};
 
 	fieldsQ8[0].data.ch_ = '8';
 
@@ -723,11 +721,11 @@ int Commands::SecureLeaveQ7(const CHANNEL_INFO* pcchinfo)
 	int send_err = -1;
 
 	/*'Q' '7' From h00 Channel h00 Gender Signature SignatureSize*/
-	MSG_FIELD fieldsQ7[6] = {{CHAR_FIELD,1,0,false}
-							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-							,{STRING_FIELD,(pcchinfo->name.length()+1)*sizeof(wchar_t),pcchinfo->name.c_str(),false}
-							,{CHAR_FIELD,1,0,false}
-							,{QSIGNATURE_FIELD, 0,0,false}, {SIGNATURE_LEN_FIELD, sizeof(WORD),0,false}};
+	MSG_FIELD_IN fieldsQ7[6] = {{CHAR_FIELD,1,0}
+							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+							,{STRING_FIELD,(pcchinfo->name.length()+1)*sizeof(wchar_t),pcchinfo->name.c_str()}
+							,{CHAR_FIELD,1,0}
+							,{QSIGNATURE_FIELD, 0,0}, {SIGNATURE_LEN_FIELD, sizeof(WORD),0}};
 
 	fieldsQ7[0].data.ch_ = '7';
 	fieldsQ7[3].data.ch_ = theApp.ptrMe_->gender;
@@ -772,12 +770,12 @@ int Commands::SecureChannelMsgQ01(const std::wstring& channel, const CHANNEL_INF
 
 	/*'Q' '0' Channel h00 From h00 MessageTextLentgh MessageText h00 SignatureSize Signature*/
 	WORD MessageTextLentgh = static_cast<WORD>(wcslen(text));
-	MSG_FIELD fieldsQ10[7] = {{CHAR_FIELD,1,0,false}
-							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
-							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-							,{LEN_OF_STRING_FIELD, sizeof(MessageTextLentgh),0,false}
-							,{STRING_FIELD,(MessageTextLentgh+1)*sizeof(wchar_t),text,false}
-							,{SIGNATURE_LEN_FIELD, sizeof(WORD),0,false},{QSIGNATURE_FIELD, 0,0,false}};
+	MSG_FIELD_IN fieldsQ10[7] = {{CHAR_FIELD,1,0}
+							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str()}
+							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+							,{LEN_OF_STRING_FIELD, sizeof(MessageTextLentgh),0}
+							,{STRING_FIELD,(MessageTextLentgh+1)*sizeof(wchar_t),text}
+							,{SIGNATURE_LEN_FIELD, sizeof(WORD),0},{QSIGNATURE_FIELD, 0,0}};
 
 	fieldsQ10[0].data.ch_ = fMe ? '1' : '0';
 	fieldsQ10[3].data.bytes_ = (unsigned char*)&MessageTextLentgh;
@@ -822,11 +820,11 @@ int Commands::SecureJoinQ5(const std::wstring& channel, const wchar_t* passwd)
 	int msg_size = 0;
 
 	/*'Q' '5' From h00 Channel h00 Status Gender (16)MD5Hash SignatureSize Signature*/
-	MSG_FIELD fieldsQ5[8] = {{CHAR_FIELD,1,0,false}, {STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
-							,{CHAR_FIELD,1,0,false},{CHAR_FIELD,1,0,false}
-							,{BYTES_FIELD,sizeof(hash),0,false}
-							,{QSIGNATURE_FIELD, 0,0,false},{SIGNATURE_LEN_FIELD, sizeof(WORD),0,false}};
+	MSG_FIELD_IN fieldsQ5[8] = {{CHAR_FIELD,1,0}, {STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str()}
+							,{CHAR_FIELD,1,0},{CHAR_FIELD,1,0}
+							,{BYTES_FIELD,sizeof(hash),0}
+							,{QSIGNATURE_FIELD, 0,0},{SIGNATURE_LEN_FIELD, sizeof(WORD),0}};
 
 	fieldsQ5[0].data.ch_ = '5';
 	fieldsQ5[3].data.ch_ = theApp.ptrMe_->status;
@@ -876,11 +874,11 @@ int Commands::ReplySecureJoinQ6(const std::wstring& channel, char result, const 
 	int send_err = -1;
 
 	/*'Q' '6' To h00 Channel h00 Result Signature SignatureSize*/
-	MSG_FIELD fieldsQ6[6] = {{CHAR_FIELD,1,0,false}
-							,{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick(),false}
-							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
-							,{CHAR_FIELD, 1,0,false}
-							,{QSIGNATURE_FIELD, 0,0,false}, {SIGNATURE_LEN_FIELD, sizeof(WORD),0,false}};
+	MSG_FIELD_IN fieldsQ6[6] = {{CHAR_FIELD,1,0}
+							,{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick()}
+							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str()}
+							,{CHAR_FIELD, 1,0}
+							,{QSIGNATURE_FIELD, 0,0}, {SIGNATURE_LEN_FIELD, sizeof(WORD),0}};
 
 	fieldsQ6[0].data.ch_ = '6';
 	fieldsQ6[3].data.ch_ = result;
@@ -913,16 +911,16 @@ int Commands::ReplyList1(const USER_INFO* pinfo, int delay)
 	Icon
 	Signature SignatureSize
 	*/
-	MSG_FIELD fields1[20] = {{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t), pinfo->getNick(),false}
-							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-							,{CHAR_FIELD,1,0,false},{CHAR_FIELD,1,0,false}
-							,{BYTES_FIELD,1,0,false},{NUMBER_FIELD,sizeof(theApp.ptrMe_->ver),0,false}, {CHAR_FIELD,1,0,false},{BYTES_FIELD,sizeof(theApp.ptrMe_->uuid),0,false}
-							,{BYTES_FIELD,1,0,false},{NUMBER_FIELD,sizeof(theApp.ptrMe_->license_id),0,false}, {CHAR_FIELD,1,0,false}
-							,{NUMBER_FIELD,sizeof(dwColor),0,false},{BYTES_FIELD,1,0,false}
-							,{BYTES_FIELD,sizeof(SYSTEMTIME)+sizeof(WORD),0,false}, {STRING_FIELD,sizeof(wszMsgBoardMessageIDs),wszMsgBoardMessageIDs, false}//No Message Board messages
-							,{NUMBER_FIELD, sizeof(WORD),0,false}, {BYTES_FIELD, theApp.ptrMe_->pub_key_size,0,false}
-							,{BYTES_FIELD, sizeof(theApp.ptrMe_->icon),0,false}
-							,{SIGNATURE_FIELD, 0,0,false}, {SIGNATURE_LEN_FIELD, sizeof(WORD),0,false}};
+	MSG_FIELD_IN fields1[20] = {{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t), pinfo->getNick()}
+							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+							,{CHAR_FIELD,1,0},{CHAR_FIELD,1,0}
+							,{BYTES_FIELD,1,0},{NUMBER_FIELD,sizeof(theApp.ptrMe_->ver),0}, {CHAR_FIELD,1,0},{BYTES_FIELD,sizeof(theApp.ptrMe_->uuid),0}
+							,{BYTES_FIELD,1,0},{NUMBER_FIELD,sizeof(theApp.ptrMe_->license_id),0}, {CHAR_FIELD,1,0}
+							,{NUMBER_FIELD,sizeof(dwColor),0},{BYTES_FIELD,1,0}
+							,{BYTES_FIELD,sizeof(SYSTEMTIME)+sizeof(WORD),0}, {STRING_FIELD,sizeof(wszMsgBoardMessageIDs),wszMsgBoardMessageIDs}//No Message Board messages
+							,{NUMBER_FIELD, sizeof(WORD),0}, {BYTES_FIELD, theApp.ptrMe_->pub_key_size,0}
+							,{BYTES_FIELD, sizeof(theApp.ptrMe_->icon),0}
+							,{SIGNATURE_FIELD, 0,0}, {SIGNATURE_LEN_FIELD, sizeof(WORD),0}};
 
 	fields1[2].data.ch_ = theApp.ptrMe_->status;
 	fields1[3].data.ch_ = theApp.ptrMe_->wnd_state;
@@ -963,12 +961,12 @@ int Commands::ReplyConfirmMassTextMsg7(const wchar_t* datagramId, const USER_INF
 	//AutoAnswers are not supported
 	const wchar_t wszCurrentAA[]=L"";
 
-	MSG_FIELD fields7[7] = {{CHAR_FIELD,1,0,false}
-							,{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t), pinfo->getNick(),false}
-							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-							,{CHAR_FIELD,1,0,false}
-							,{STRING_FIELD,sizeof(wszCurrentAA),wszCurrentAA,false}, {BYTES_FIELD, 1,0,false}
-							,{STRING_FIELD,(wcslen(datagramId)+1)*sizeof(wchar_t),datagramId,false}};
+	MSG_FIELD_IN fields7[7] = {{CHAR_FIELD,1,0}
+							,{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t), pinfo->getNick()}
+							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+							,{CHAR_FIELD,1,0}
+							,{STRING_FIELD,sizeof(wszCurrentAA),wszCurrentAA}, {BYTES_FIELD, 1,0}
+							,{STRING_FIELD,(wcslen(datagramId)+1)*sizeof(wchar_t),datagramId}};
 
 	fields7[0].data.ch_ = theApp.ptrMe_->status;
 	fields7[3].data.ch_ = theApp.ptrMe_->gender;
@@ -992,9 +990,9 @@ int Commands::ReplyTopicC(const std::wstring& channel, const wchar_t* topic, con
 
 	/*'C' To h00 Channel h00 Topic h00*/
 
-	MSG_FIELD fieldsC[3] = {{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t), pinfo->getNick(),false}
-					,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t), channel.c_str(),false}
-					,{STRING_FIELD,(wcslen(topic)+1)*sizeof(wchar_t), topic,false}};
+	MSG_FIELD_IN fieldsC[3] = {{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t), pinfo->getNick()}
+					,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t), channel.c_str()}
+					,{STRING_FIELD,(wcslen(topic)+1)*sizeof(wchar_t), topic}};
 
 	std::unique_ptr<char[]> ptrMessage;
 	int msg_size = 0;
@@ -1031,24 +1029,24 @@ int Commands::ReplyInfoG(const USER_INFO* pinfo)
 	FullName h00 Job h00 Department h00 Work phone h00
 	Mobile phone h00 www h00 e-mail h00 address h00*/
 
-	MSG_FIELD fieldsG[18] = {{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t), pinfo->getNick(),false}
-		,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-		,{STRING_FIELD, (theApp.MyPersonalInfo_.computer_name.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.computer_name.c_str(),false}
-		,{STRING_FIELD, (theApp.MyPersonalInfo_.user_name.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.user_name.c_str(),false}
-		,{STRING_FIELD, sizeof(wszIpAddresses), wszIpAddresses,false}
-		,{STRING_FIELD, (strChannels.length()+1)*sizeof(wchar_t), strChannels.c_str(),false}
-		,{STRING_FIELD, sizeof(wszCurrentAA),wszCurrentAA,false}
-		,{STRING_FIELD, (theApp.MyPersonalInfo_.domain_name.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.domain_name.c_str(),false}
-		,{STRING_FIELD, (theApp.MyPersonalInfo_.os.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.os.c_str(),false}
-		,{STRING_FIELD, (theApp.MyPersonalInfo_.chat_software.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.chat_software.c_str(),false}
-		,{STRING_FIELD, (theApp.MyPersonalInfo_.full_name.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.full_name.c_str(),false}
-		,{STRING_FIELD, (theApp.MyPersonalInfo_.job.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.job.c_str(),false}
-		,{STRING_FIELD, (theApp.MyPersonalInfo_.department.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.department.c_str(),false}
-		,{STRING_FIELD, (theApp.MyPersonalInfo_.phone_work.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.phone_work.c_str(),false}
-		,{STRING_FIELD, (theApp.MyPersonalInfo_.phone_mob.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.phone_mob.c_str(),false}
-		,{STRING_FIELD, (theApp.MyPersonalInfo_.www.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.www.c_str(),false}
-		,{STRING_FIELD, (theApp.MyPersonalInfo_.email.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.email.c_str(),false}
-		,{STRING_FIELD, (theApp.MyPersonalInfo_.address.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.address.c_str(),false}};
+	MSG_FIELD_IN fieldsG[18] = {{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t), pinfo->getNick()}
+		,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.computer_name.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.computer_name.c_str()}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.user_name.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.user_name.c_str()}
+		,{STRING_FIELD, sizeof(wszIpAddresses), wszIpAddresses}
+		,{STRING_FIELD, (strChannels.length()+1)*sizeof(wchar_t), strChannels.c_str()}
+		,{STRING_FIELD, sizeof(wszCurrentAA),wszCurrentAA}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.domain_name.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.domain_name.c_str()}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.os.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.os.c_str()}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.chat_software.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.chat_software.c_str()}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.full_name.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.full_name.c_str()}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.job.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.job.c_str()}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.department.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.department.c_str()}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.phone_work.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.phone_work.c_str()}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.phone_mob.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.phone_mob.c_str()}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.www.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.www.c_str()}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.email.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.email.c_str()}
+		,{STRING_FIELD, (theApp.MyPersonalInfo_.address.length()+1)*sizeof(wchar_t), theApp.MyPersonalInfo_.address.c_str()}};
 
 	std::unique_ptr<char[]> ptrMessage;
 	int msg_size = 0;
@@ -1067,7 +1065,7 @@ int Commands::ReplyConfirmBeepH(const USER_INFO* pinfo)
 
 	//Beep
 	/*'H' '1' To h00 From h00 Gender*/
-	MSG_FIELD fieldsH[4] = {{CHAR_FIELD,1,0,false},{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick(),false},{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false},{CHAR_FIELD,1,0,false}};
+	MSG_FIELD_IN fieldsH[4] = {{CHAR_FIELD,1,0},{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick()},{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()},{CHAR_FIELD,1,0}};
 	fieldsH[0].data.ch_ = '1';
 	fieldsH[3].data.ch_ = theApp.ptrMe_->gender;
 
@@ -1087,10 +1085,10 @@ int Commands::ReplyHereK(const std::wstring& channel, const USER_INFO* pinfo, in
 	int send_err = -1;
 
 	/*'K' To h00 Channel h00 From h00 RemoteActive*/
-	MSG_FIELD fieldsK[4] = {{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick(),false}
-				,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
-				,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-				,{CHAR_FIELD,1,0,false}};
+	MSG_FIELD_IN fieldsK[4] = {{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick()}
+				,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str()}
+				,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+				,{CHAR_FIELD,1,0}};
 
 	fieldsK[3].data.ch_ = ACTIVE_CHANNEL_STATE;
 
@@ -1114,7 +1112,7 @@ int Commands::ReplyChannelsO(const USER_INFO* pinfo)
 	CHANNEL_INFO::getChannelsList(strChannels);
 
 	/*'O' To h00 ListOfChannels '#'*/
-	MSG_FIELD fieldsO[2] = {{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick(),false},{STRING_FIELD,sizeof(wchar_t)*(strChannels.length()+1),strChannels.c_str(),false}};
+	MSG_FIELD_IN fieldsO[2] = {{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick()},{STRING_FIELD,sizeof(wchar_t)*(strChannels.length()+1),strChannels.c_str()}};
 	std::unique_ptr<char[]> ptrMessage;
 	int msg_size = 0;
 	std::tie(ptrMessage, msg_size) = createMessageFields('O', fieldsO, _ARRAYSIZE(fieldsO));
@@ -1161,15 +1159,15 @@ int Commands::Join4(const std::wstring& channel)
 		Icon
 		Signature SignatureSize
 		*/
-		MSG_FIELD fields4Main[18] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-								,{STRING_FIELD,sizeof(CHANNEL_INFO::wszMainChannel),CHANNEL_INFO::wszMainChannel,false}
-								,{CHAR_FIELD,1,0,false},{CHAR_FIELD,1,0,false},{BYTES_FIELD,1,0,false}
-								,{NUMBER_FIELD,sizeof(theApp.ptrMe_->ver),0,false}, {BYTES_FIELD,sizeof(theApp.ptrMe_->uuid),0,false},{BYTES_FIELD,1,0,false}
-								,{CHAR_FIELD,1,0,false},{NUMBER_FIELD,sizeof(dwColor),0,false},{BYTES_FIELD,1,0,false}
-								,{BYTES_FIELD,sizeof(SYSTEMTIME)+sizeof(WORD),0,false}, {STRING_FIELD,sizeof(wszMsgBoardMessageIDs),wszMsgBoardMessageIDs,false}//No Message Board messages
-								,{NUMBER_FIELD, sizeof(WORD),0,false}, {BYTES_FIELD, theApp.ptrMe_->pub_key_size,0,false}
-								,{BYTES_FIELD, sizeof(theApp.ptrMe_->icon),0,false}
-								,{SIGNATURE_FIELD, 0,0,false}, {SIGNATURE_LEN_FIELD, sizeof(WORD),0,false}};
+		MSG_FIELD_IN fields4Main[18] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+								,{STRING_FIELD,sizeof(CHANNEL_INFO::wszMainChannel),CHANNEL_INFO::wszMainChannel}
+								,{CHAR_FIELD,1,0},{CHAR_FIELD,1,0},{BYTES_FIELD,1,0}
+								,{NUMBER_FIELD,sizeof(theApp.ptrMe_->ver),0}, {BYTES_FIELD,sizeof(theApp.ptrMe_->uuid),0},{BYTES_FIELD,1,0}
+								,{CHAR_FIELD,1,0},{NUMBER_FIELD,sizeof(dwColor),0},{BYTES_FIELD,1,0}
+								,{BYTES_FIELD,sizeof(SYSTEMTIME)+sizeof(WORD),0}, {STRING_FIELD,sizeof(wszMsgBoardMessageIDs),wszMsgBoardMessageIDs}//No Message Board messages
+								,{NUMBER_FIELD, sizeof(WORD),0}, {BYTES_FIELD, theApp.ptrMe_->pub_key_size,0}
+								,{BYTES_FIELD, sizeof(theApp.ptrMe_->icon),0}
+								,{SIGNATURE_FIELD, 0,0}, {SIGNATURE_LEN_FIELD, sizeof(WORD),0}};
 		
 		fields4Main[2].data.ch_ = theApp.ptrMe_->status;
 		fields4Main[3].data.ch_ = theApp.ptrMe_->gender;
@@ -1195,9 +1193,9 @@ int Commands::Join4(const std::wstring& channel)
 	{
 		//send Join
 		/*'4' From h00 Channel h00 Status Gender*/
-		MSG_FIELD fields4[4] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-								,{STRING_FIELD,(name_len+1)*sizeof(wchar_t),channel.c_str(),false}
-								,{CHAR_FIELD,1,0,false},{CHAR_FIELD,1,0,false}};
+		MSG_FIELD_IN fields4[4] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+								,{STRING_FIELD,(name_len+1)*sizeof(wchar_t),channel.c_str()}
+								,{CHAR_FIELD,1,0},{CHAR_FIELD,1,0}};
 		
 		fields4[2].data.ch_ = theApp.ptrMe_->status;
 		fields4[3].data.ch_ = theApp.ptrMe_->gender;
@@ -1267,10 +1265,10 @@ int Commands::ChannelMsg2A(const std::wstring& channel, const wchar_t* text, boo
 	/*'2' Channel h00 From h00 MessageText h00 Signature*/
 	//send ChannelMeMsg
 	/*'A' Channel h00 From h00 MessageText h00 Signature*/
-	MSG_FIELD fields2[4] = {{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}
-							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-							,{STRING_FIELD,(textlen+1)*sizeof(wchar_t),text,false}
-							,{SIGNATURE_FIELD,0,0,false}};
+	MSG_FIELD_IN fields2[4] = {{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str()}
+							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+							,{STRING_FIELD,(textlen+1)*sizeof(wchar_t),text}
+							,{SIGNATURE_FIELD,0,0}};
 
 	char msg_type = fMe ? 'A' : '2';
 	std::unique_ptr<char[]> ptrMessage;
@@ -1313,9 +1311,9 @@ int Commands::MassTextMsgE(const wchar_t* text)
 	{
 		//send MassTextMsg
 		/*'E' From h00 To h00 MessageText h00*/
-		MSG_FIELD fieldsE[3] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-								,{STRING_FIELD,sizeof(wchar_t)*(wcslen((*it)->getNick())+1),(*it)->getNick(),false}
-								,{STRING_FIELD,(textlen+1)*sizeof(wchar_t),text,false}};
+		MSG_FIELD_IN fieldsE[3] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+								,{STRING_FIELD,sizeof(wchar_t)*(wcslen((*it)->getNick())+1),(*it)->getNick()}
+								,{STRING_FIELD,(textlen+1)*sizeof(wchar_t),text}};
 		std::unique_ptr<char[]> ptrMessage;
 		int msg_size = 0;
 		std::tie(ptrMessage, msg_size) = createMessageFields('E', fieldsE, _ARRAYSIZE(fieldsE));
@@ -1366,9 +1364,9 @@ int Commands::FloodZ(const USER_INFO* pinfo, int nsecs)
 
 	//send Flood
 	/*'Z' To h00 From h00 seconds h00*/
-	MSG_FIELD fieldsZ[3] = {{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick(),false}
-							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-							,{STRING_FIELD,(wcslen(wszSeconds)+1)*sizeof(wchar_t),wszSeconds,false}};
+	MSG_FIELD_IN fieldsZ[3] = {{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick()}
+							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+							,{STRING_FIELD,(wcslen(wszSeconds)+1)*sizeof(wchar_t),wszSeconds}};
 	std::unique_ptr<char[]> ptrMessage;
 	int msg_size = 0;
 	std::tie(ptrMessage, msg_size) = createMessageFields('Z', fieldsZ, _ARRAYSIZE(fieldsZ));
@@ -1410,9 +1408,9 @@ int Commands::MassTextMsgToE(const wchar_t* to, const wchar_t* text)
 
 	//send MassTextMsg
 	/*'E' From h00 To h00 MessageText h00*/
-	MSG_FIELD fieldsE[3] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-							,{STRING_FIELD,(wcslen(to)+1)*sizeof(wchar_t),to,false}
-							,{STRING_FIELD,(textlen+1)*sizeof(wchar_t),text,false}};
+	MSG_FIELD_IN fieldsE[3] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+							,{STRING_FIELD,(wcslen(to)+1)*sizeof(wchar_t),to}
+							,{STRING_FIELD,(textlen+1)*sizeof(wchar_t),text}};
 	std::unique_ptr<char[]> ptrMessage;
 	int msg_size = 0;
 	std::tie(ptrMessage, msg_size) = createMessageFields('E', fieldsE, _ARRAYSIZE(fieldsE));
@@ -1444,10 +1442,10 @@ int Commands::NickName3(const wchar_t* nick)
 
 	//send NickName
 	/*'3' From h00 NewNick h00 Gender Signature*/
-	MSG_FIELD fields3[4] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-							,{STRING_FIELD,(nick_len+1)*sizeof(wchar_t),nick,false}
-							,{CHAR_FIELD,1,0,false}
-							,{SIGNATURE_FIELD,0,0,false}};
+	MSG_FIELD_IN fields3[4] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+							,{STRING_FIELD,(nick_len+1)*sizeof(wchar_t),nick}
+							,{CHAR_FIELD,1,0}
+							,{SIGNATURE_FIELD,0,0}};
 	fields3[2].data.ch_ = theApp.ptrMe_->gender;
 
 	std::unique_ptr<char[]> ptrMessage;
@@ -1503,9 +1501,9 @@ int Commands::NewTopicB(const std::wstring& channel, const wchar_t* topic)
 
 	//send NewTopic
 	/*'B' Channel h00 Topic ' (From) ' h00 Signature*/
-	MSG_FIELD fieldsB[3] = {{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t), channel.c_str(),false}
-							,{STRING_FIELD,(topic_len+1)*sizeof(wchar_t),topic,false}
-							,{SIGNATURE_FIELD,0,0,false}};
+	MSG_FIELD_IN fieldsB[3] = {{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t), channel.c_str()}
+							,{STRING_FIELD,(topic_len+1)*sizeof(wchar_t),topic}
+							,{SIGNATURE_FIELD,0,0}};
 
 	std::unique_ptr<char[]> ptrMessage;
 	int msg_size = 0;
@@ -1539,12 +1537,12 @@ int Commands::PingPongP(const USER_INFO* pinfo, bool fPong)
 	//send Ping
 	/*'P' '0' To h00 From h00 CurrentTime h00
 	LastMsgBoardMessage TotalMsgBoardMessages MsgBoardMessageIDs h00 PubKeySize PubKey*/
-	MSG_FIELD fieldsP[8] = {{CHAR_FIELD,1,0,false}
-							,{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick(),false}
-							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-							,{STRING_FIELD,sizeof(wszTime),wszTime,false}
-							,{BYTES_FIELD,sizeof(SYSTEMTIME)+sizeof(WORD),0,false}, {STRING_FIELD,sizeof(wszMsgBoardMessageIDs),wszMsgBoardMessageIDs,false}//No Message Board messages
-							,{NUMBER_FIELD, sizeof(WORD),0,false}, {BYTES_FIELD, theApp.ptrMe_->pub_key_size,0,false}};
+	MSG_FIELD_IN fieldsP[8] = {{CHAR_FIELD,1,0}
+							,{STRING_FIELD,(wcslen(pinfo->getNick())+1)*sizeof(wchar_t),pinfo->getNick()}
+							,{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+							,{STRING_FIELD,sizeof(wszTime),wszTime}
+							,{BYTES_FIELD,sizeof(SYSTEMTIME)+sizeof(WORD),0}, {STRING_FIELD,sizeof(wszMsgBoardMessageIDs),wszMsgBoardMessageIDs}//No Message Board messages
+							,{NUMBER_FIELD, sizeof(WORD),0}, {BYTES_FIELD, theApp.ptrMe_->pub_key_size,0}};
 
 	fieldsP[0].data.ch_ = fPong ? '1' : '0';
 	fieldsP[4].data.bytes_ = pNullBytes;
@@ -1581,7 +1579,7 @@ int Commands::BeepH(const wchar_t* to)
 
 	//Beep
 	/*'H' '0' To h00 From h00*/
-	MSG_FIELD fieldsH[3] = {{CHAR_FIELD,1,0,false},{STRING_FIELD,(wcslen(to)+1)*sizeof(wchar_t),to,false},{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}};
+	MSG_FIELD_IN fieldsH[3] = {{CHAR_FIELD,1,0},{STRING_FIELD,(wcslen(to)+1)*sizeof(wchar_t),to},{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}};
 	fieldsH[0].data.ch_ = '0';
 
 	std::unique_ptr<char[]> ptrMessage;
@@ -1612,7 +1610,7 @@ int Commands::InfoF(const wchar_t* to)
 
 	//Info
 	/*'F' To h00 From h00*/
-	MSG_FIELD fieldsF[2] = {{STRING_FIELD,(wcslen(to)+1)*sizeof(wchar_t),to,false},{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}};
+	MSG_FIELD_IN fieldsF[2] = {{STRING_FIELD,(wcslen(to)+1)*sizeof(wchar_t),to},{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}};
 
 	std::unique_ptr<char[]> ptrMessage;
 	int msg_size = 0;
@@ -1652,8 +1650,8 @@ int Commands::HereL(const std::wstring& channel)
 
 	//send Here
 	/*'L' From h00 Channel h00*/
-	MSG_FIELD fieldsL[2] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str(),false}};
+	MSG_FIELD_IN fieldsL[2] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+							,{STRING_FIELD,(channel.length()+1)*sizeof(wchar_t),channel.c_str()}};
 
 	std::unique_ptr<char[]> ptrMessage;
 	int msg_size = 0;
@@ -1676,7 +1674,7 @@ int Commands::ChannelsN(const wchar_t* to)
 
 	//send Channels
 	/*'N' From h00*/
-	MSG_FIELD fieldsN[1] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}};
+	MSG_FIELD_IN fieldsN[1] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}};
 	std::unique_ptr<char[]> ptrMessage;
 	int msg_size = 0;
 	std::tie(ptrMessage, msg_size) = createMessageFields('N', fieldsN, _ARRAYSIZE(fieldsN));
@@ -1694,7 +1692,7 @@ int Commands::List0()
 	int send_err = -1;
 	//send List
 	/*'0' From h00 CodePage h00*/
-	MSG_FIELD fields0[3] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}, {CHAR_FIELD,1,0,false}, {BYTES_FIELD,1,0,false}};
+	MSG_FIELD_IN fields0[3] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}, {CHAR_FIELD,1,0}, {BYTES_FIELD,1,0}};
 	fields0[1].data.ch_ = theApp.ptrMe_->codepage;
 	fields0[2].data.bytes_ = pNullBytes;
 
@@ -1748,10 +1746,10 @@ int Commands::Leave5(const CHANNEL_INFO* pcchinfo)
 
 	//send Leave
 	/*'5' From h00 Channel h00 Gender Signature*/
-	MSG_FIELD fields5[4] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick(),false}
-						,{STRING_FIELD,(pcchinfo->name.length()+1)*sizeof(wchar_t),pcchinfo->name.c_str(),false}
-						,{CHAR_FIELD,1,0,false}
-						,{SIGNATURE_FIELD,0,0,false}};
+	MSG_FIELD_IN fields5[4] = {{STRING_FIELD,(wcslen(theApp.ptrMe_->getNick())+1)*sizeof(wchar_t),theApp.ptrMe_->getNick()}
+						,{STRING_FIELD,(pcchinfo->name.length()+1)*sizeof(wchar_t),pcchinfo->name.c_str()}
+						,{CHAR_FIELD,1,0}
+						,{SIGNATURE_FIELD,0,0}};
 
 	fields5[2].data.ch_ = theApp.ptrMe_->gender;
 

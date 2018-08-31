@@ -21,9 +21,25 @@ enum FIELD_TYPE {VOID_FIELD=0,
 				SIGNATURE_LEN_FIELD};
 
 /**
-A MSG_FIELD struct describes an object that stores information about one field of a message
+A MSG_FIELD_IN struct describes an object that stores information about one field of a message
 */
-struct MSG_FIELD
+struct MSG_FIELD_IN
+{
+	FIELD_TYPE type;
+	size_t size;
+
+	union TYPED_DATA
+	{
+		const wchar_t* cwsz_;
+		char ch_;
+		const unsigned char* bytes_;
+	} data;
+};
+
+/**
+A MSG_FIELD_OUT struct describes an object that stores information about one field of a message
+*/
+struct MSG_FIELD_OUT
 {
 	FIELD_TYPE type;
 	size_t size;
@@ -36,12 +52,8 @@ struct MSG_FIELD
 		unsigned char* bytes_;
 	} data;
 
-	bool delete_;
-
-	~MSG_FIELD()
+	~MSG_FIELD_OUT()
 	{
-		if(!delete_) return;
-
 		switch(type)
 		{
 		case NUMBER_FIELD:
@@ -239,7 +251,7 @@ class Commands
 #endif // CHATTERM_OS_WINDOWS
 			what_= std::make_unique<char[]>(what_len_);
 			memcpy(what_.get(), buf, what_len_);
-			memcpy(&to_, pinfo->naddr_info.psaddr_, sizeof(sockaddr_in6));
+			memcpy(&to_, pinfo->naddr_info.get_saddr(), sizeof(sockaddr_in6));
 		}
 
 		//Time when to send the message
@@ -360,7 +372,7 @@ private:
 	@return - number of bytes copied to the message buffer, it is a size of the created message
 	*/
 	//int createMessageFields(char*& pMessage, char chType, MSG_FIELD* pFields, int nFields);
-	std::tuple<std::unique_ptr<char[]>, int> Commands::createMessageFields(char chType, MSG_FIELD* pFields, int nFields);
+	std::tuple<std::unique_ptr<char[]>, int> Commands::createMessageFields(char chType, MSG_FIELD_IN* pFields, int nFields);
 
 #ifndef CHATTERM_OS_WINDOWS
 	// Big endian flag; True on big endian processors
