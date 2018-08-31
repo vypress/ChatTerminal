@@ -242,7 +242,7 @@ private:
 	@second - reference to a variable that receives position to a second parameter
 	@return - string that contains first parameter
 	*/
-	std::wstring&& ChatTerminalApp::getSecondParam(const wchar_t* p, const wchar_t*& second);
+	std::wstring ChatTerminalApp::getSecondParam(const wchar_t* p, const wchar_t*& second);
 
 	/**
 	Processes command by provided ID and parameters string

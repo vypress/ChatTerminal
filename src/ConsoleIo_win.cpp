@@ -222,7 +222,7 @@ namespace consoleio
 		// Set the fill character and attributes.
 		CHAR_INFO chiFill = {wchFill, csbi.wAttributes};
 
-		CHAR_INFO* buffer = 0;
+		std::unique_ptr<CHAR_INFO[]> buffer;
 		SHORT lines_to_move = yStartTyping + lines - dwCursorPosition.Y;
 		if(lines_to_move>0)
 		{
@@ -231,9 +231,9 @@ namespace consoleio
 			COORD dwBufferCoord = { 0, 0 };
 			SMALL_RECT rcRegion = { srWindowRight, dwCursorPosition.Y, srWindowRight+1, yStartTyping+lines-1 };
 
-			buffer = new CHAR_INFO[1*lines_to_move];
+			buffer = std::make_unique<CHAR_INFO[]>(1*lines_to_move);
 
-			ReadConsoleOutput( hStdout, (CHAR_INFO *)buffer, dwBufferSize, dwBufferCoord, &rcRegion );
+			ReadConsoleOutput( hStdout, buffer.get(), dwBufferSize, dwBufferCoord, &rcRegion );
 			////////////////////////////////////////
 		}
 
@@ -272,9 +272,7 @@ namespace consoleio
 			COORD dwBufferCoord = { 0, 0 };
 			SMALL_RECT rcRegion = { 0, dwCursorPosition.Y+1, 1, yStartTyping+lines};
 
-			WriteConsoleOutput( hStdout, (CHAR_INFO *)buffer, dwBufferSize, dwBufferCoord, &rcRegion );
-
-			delete[] buffer;
+			WriteConsoleOutput( hStdout, buffer.get(), dwBufferSize, dwBufferCoord, &rcRegion );
 		}
 	}
 
@@ -301,7 +299,7 @@ namespace consoleio
 		// Set the fill character and attributes.
 		CHAR_INFO chiFill = {wchFill, csbi.wAttributes};
 
-		CHAR_INFO* buffer = 0;
+		std::unique_ptr<CHAR_INFO[]> buffer;
 		SHORT lines_to_move = yStartTyping + lines -1 - dwCursorPosition.Y;
 		if(lines_to_move>0)
 		{
@@ -310,9 +308,9 @@ namespace consoleio
 			COORD dwBufferCoord = { 0, 0 };
 			SMALL_RECT rcRegion = { 0, dwCursorPosition.Y+1, 1, yStartTyping+lines };
 
-			buffer = new CHAR_INFO[1*lines_to_move];
+			buffer = std::make_unique<CHAR_INFO[]>(1*lines_to_move);
 
-			ReadConsoleOutput( hStdout, (CHAR_INFO *)buffer, dwBufferSize, dwBufferCoord, &rcRegion );
+			ReadConsoleOutput( hStdout, buffer.get(), dwBufferSize, dwBufferCoord, &rcRegion );
 			////////////////////////////////////////
 
 			//determine and scroll 'e' characters
@@ -351,9 +349,7 @@ namespace consoleio
 			COORD dwBufferCoord = { 0, 0 };
 			SMALL_RECT rcRegion = { srWindowRight, dwCursorPosition.Y, srWindowRight+1, yStartTyping+lines-1};
 
-			WriteConsoleOutput( hStdout, (CHAR_INFO *)buffer, dwBufferSize, dwBufferCoord, &rcRegion ); 
-
-			delete[] buffer;
+			WriteConsoleOutput( hStdout, buffer.get(), dwBufferSize, dwBufferCoord, &rcRegion ); 
 		}
 	}
 

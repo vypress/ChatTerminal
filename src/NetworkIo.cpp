@@ -177,8 +177,8 @@ namespace networkio
 
 		if(ERROR_BUFFER_OVERFLOW == (pGetAdaptersAddressesProc)(AF_INET6, ulFlags, NULL, NULL, &ulSize))
 		{
-			unsigned char* pAddressesBuf = new unsigned char[ulSize];
-			IP_ADAPTER_ADDRESSES* pAddresses = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(pAddressesBuf);
+			std::unique_ptr<unsigned char[]> pAddressesBuf = std::make_unique<unsigned char[]>(ulSize);
+			IP_ADAPTER_ADDRESSES* pAddresses = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(pAddressesBuf.get());
 
 			if(ERROR_SUCCESS == (pGetAdaptersAddressesProc)(AF_INET6, ulFlags, NULL, pAddresses, &ulSize))
 			{
@@ -193,7 +193,6 @@ namespace networkio
 							if(compare_sockaddrs(pAddr->Address.lpSockaddr, pAddr->Address.iSockaddrLength, reinterpret_cast<const sockaddr*>(paddr), sizeof(*paddr)))
 							{
 								IF_INDEX index = pAddresses->Ipv6IfIndex;
-								delete[] pAddressesBuf;
 								if(hinstLib) FreeLibrary(hinstLib);
 								return index;
 							}
@@ -205,15 +204,13 @@ namespace networkio
 					pAddresses = pAddresses->Next;
 				}
 			}
-
-			delete[] pAddressesBuf;
 		}
 
 		if(hinstLib) FreeLibrary(hinstLib);
 		return false;
 	}
 
-	bool get_interface_by_adapter_name(const wchar_t* aname, const wchar_t* desired_addr, int ai_family, Interface*& piref)
+	std::unique_ptr<Interface> get_interface_by_adapter_name(const wchar_t* aname, const wchar_t* desired_addr, int ai_family)
 	{
 		if(!aname) return false;
 		if(ai_family != AF_INET && ai_family != AF_INET6) return false;
@@ -227,16 +224,15 @@ namespace networkio
 		struct addrinfo* pai = 0;
 		if(desired_addr && *desired_addr)
 		{
-			char* address = 0;
+			std::unique_ptr<char[]> ptrAddress;
 			size_t buflen = 0;
 			if(0 == wcstombs_s(&buflen, NULL, 0, desired_addr, 0))
 			{
-				address = new char[buflen];
-				wcstombs_s(&buflen, address, buflen, desired_addr, _TRUNCATE);
+				ptrAddress = std::make_unique<char[]>(buflen);
+				wcstombs_s(&buflen, ptrAddress.get(), buflen, desired_addr, _TRUNCATE);
 			}
 
-			int res = getaddrinfo(address, "0"/*any port*/, &hints, &pai);
-			delete[] address;
+			int res = getaddrinfo(ptrAddress.get(), "0"/*any port*/, &hints, &pai);
 			if(0 != res) return false;
 			if(0 == pai) return false;
 		}
@@ -257,11 +253,11 @@ namespace networkio
 		*/
 
 		size_t buflen = 0;
-		char* pszAName = 0;
+		std::unique_ptr<char[]> ptrAName;
 		if(0 == wcstombs_s(&buflen, NULL, 0, aname, 0))
 		{
-			pszAName = new char[buflen];
-			wcstombs_s(&buflen, pszAName, buflen, aname, _TRUNCATE);
+			ptrAName = std::make_unique<char[]>(buflen);
+			wcstombs_s(&buflen, ptrAName.get(), buflen, aname, _TRUNCATE);
 		}
 
 		//check whether GetAdaptersAddresses is presented
@@ -284,8 +280,8 @@ namespace networkio
 
 			if(ERROR_BUFFER_OVERFLOW == (pGetAdaptersAddressesProc)(ai_family, ulFlags, NULL, NULL, &ulSize))
 			{
-				unsigned char* pAddressesBuf = new unsigned char[ulSize];
-				IP_ADAPTER_ADDRESSES* pAddresses = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(pAddressesBuf);
+				std::unique_ptr<unsigned char[]> ptrAddressesBuf = std::make_unique<unsigned char[]>(ulSize);
+				IP_ADAPTER_ADDRESSES* pAddresses = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(ptrAddressesBuf.get());
 
 				if(ERROR_SUCCESS == (pGetAdaptersAddressesProc)(ai_family, ulFlags, NULL, pAddresses, &ulSize))
 				{
@@ -293,7 +289,7 @@ namespace networkio
 					{
 						if((0==wcscmp(pAddresses->FriendlyName, aname))
 							|| (0==wcscmp(pAddresses->Description, aname))
-							|| (0==strcmp(pAddresses->AdapterName, pszAName)))
+							|| (0==strcmp(pAddresses->AdapterName, ptrAName.get())))
 						{
 							switch(ai_family)
 							{
@@ -322,14 +318,12 @@ namespace networkio
 									if((static_cast<INT>(pai->ai_addrlen) == pAddr->Address.iSockaddrLength)
 										&& (compare_sockaddrs(pAddr->Address.lpSockaddr, pAddr->Address.iSockaddrLength, pai->ai_addr, pai->ai_addrlen)))
 									{
-										piref = new Interface(pai, pAddresses->Ipv6IfIndex);
+										unsigned long if6index = ai_family == AF_INET6 ? pAddresses->Ipv6IfIndex : 0;
+										std::unique_ptr<Interface> ptrI = std::make_unique<Interface>(pai, if6index);
 
 										freeaddrinfo(pai);
-										delete[] pAddressesBuf;
-										delete[] pszAName;
-
 										if(hinstLib) FreeLibrary(hinstLib);
-										return true;
+										return ptrI;
 									}
 								}
 								else
@@ -343,13 +337,12 @@ namespace networkio
 											memcpy(pai->ai_addr, pAddr->Address.lpSockaddr,pai->ai_addrlen);
 
 											unsigned long if6index = ai_family==AF_INET6 ? pAddresses->Ipv6IfIndex : 0;
-											piref = new Interface(pai, if6index);
+
+											std::unique_ptr<Interface> ptrI = std::make_unique<Interface>(pai, if6index);
 
 											freeaddrinfo(pai);
-											delete[] pAddressesBuf;
-											delete[] pszAName;
 											if(hinstLib) FreeLibrary(hinstLib);
-											return true;
+											return ptrI;
 										}
 									}
 
@@ -360,8 +353,6 @@ namespace networkio
 						pAddresses = pAddresses->Next;
 					}
 				}
-
-				delete[] pAddressesBuf;
 			}
 		}
 		else
@@ -371,15 +362,15 @@ namespace networkio
 				DWORD dwSize = 0;
 				if(GetAdaptersInfo(NULL, &dwSize) == ERROR_BUFFER_OVERFLOW)
 				{
-					unsigned char* pAdapterInfoBuf = new unsigned char[dwSize];
-					IP_ADAPTER_INFO* pAdapterInfo = reinterpret_cast<IP_ADAPTER_INFO*>(pAdapterInfoBuf);
+					std::unique_ptr<unsigned char[]> ptrAdapterInfoBuf = std::make_unique<unsigned char[]>(dwSize);
+					IP_ADAPTER_INFO* pAdapterInfo = reinterpret_cast<IP_ADAPTER_INFO*>(ptrAdapterInfoBuf.get());
 
 					if(GetAdaptersInfo(pAdapterInfo, &dwSize) == ERROR_SUCCESS)
 					{
 						while(pAdapterInfo)
 						{
-							if((pszAName && *pszAName && (0==strcmp(pAdapterInfo->Description, pszAName)))
-								|| (0==strcmp(pAdapterInfo->AdapterName, pszAName)))
+							if((ptrAName && ptrAName[0] && (0==strcmp(pAdapterInfo->Description, ptrAName.get())))
+								|| (0==strcmp(pAdapterInfo->AdapterName, ptrAName.get())))
 							{
 								//Doesn't work in Windows7
 								//wchar_t wszAdapterName[MAX_ADAPTER_NAME_LENGTH + 4] = {0};
@@ -399,13 +390,11 @@ namespace networkio
 
 											if(pin_addr->sin_addr.S_un.S_addr == ulIP)
 											{
-												piref = new Interface(pai, 0);
+												std::unique_ptr<Interface> ptrI = std::make_unique<Interface>(pai, 0);
 
 												freeaddrinfo(pai);
-												delete[] pAdapterInfoBuf;
-												delete[] pszAName;
 												if(hinstLib) FreeLibrary(hinstLib);
-												return true;
+												return ptrI;
 											}
 										}
 
@@ -418,25 +407,19 @@ namespace networkio
 										int res = getaddrinfo(pAddrString->IpAddress.String, "0"/*any port*/, &hints, &pai);
 										if(0 == res)
 										{
-											piref = new Interface(pai, 0);
+											std::unique_ptr<Interface> ptrI = std::make_unique<Interface>(pai, 0);
 
 											freeaddrinfo(pai);
-											delete[] pAdapterInfoBuf;
-											delete[] pszAName;
 											if(hinstLib) FreeLibrary(hinstLib);
-											return true;
+											return ptrI;
 										}
 									}
 							}
 							pAdapterInfo = pAdapterInfo->Next;
 						}
 					}
-
-					delete[] pAdapterInfoBuf;
 				}
 			}
-
-		delete[] pszAName;
 
 		if(hinstLib) FreeLibrary(hinstLib);
 		if(pai) freeaddrinfo(pai);
@@ -1613,19 +1596,19 @@ namespace networkio
 			}
 			else
 			{
-				char* mcast_groups = 0;
+				std::unique_ptr<char[]> mcast_groups;
 				size_t buflen = 0;
 #ifdef CHATTERM_OS_WINDOWS
 				if(0 == wcstombs_s(&buflen, NULL, 0, wszMcastGroups, 0))
 				{
-					mcast_groups = new char[buflen];
-					wcstombs_s(&buflen, mcast_groups, buflen, wszMcastGroups, _TRUNCATE);
+					mcast_groups = std::make_unique<char[]>(buflen);
+					wcstombs_s(&buflen, mcast_groups.get(), buflen, wszMcastGroups, _TRUNCATE);
 				}
 #else
 				buflen = NixHlpr.assignCharSz(&mcast_groups, wszMcastGroups);
 #endif // CHATTERM_OS_WINDOWS
 
-				const char* seek = mcast_groups;
+				const char* seek = mcast_groups.get();
 				while(*seek)
 				{
 					while(iswspace(*seek)) ++seek;
@@ -1691,8 +1674,6 @@ namespace networkio
 						result = -1;
 					}
 				}
-
-				delete[] mcast_groups;
 			}
 		}
 
@@ -2084,12 +2065,12 @@ namespace networkio
 		if( 0 == psender_) return -1;
 
 		size_t buflen = 0;
-		char* address = 0;
+		std::unique_ptr<char[]> ptrAddress;
 #ifdef CHATTERM_OS_WINDOWS
 		if(0 == wcstombs_s(&buflen, NULL, 0, wszAddress, 0))
 		{
-			address = new char[buflen];
-			wcstombs_s(&buflen, address, buflen, wszAddress, _TRUNCATE);
+			ptrAddress = std::make_unique<char[]>(buflen);
+			wcstombs_s(&buflen, ptrAddress.get(), buflen, wszAddress, _TRUNCATE);
 		}
 #else
 		buflen = NixHlpr.assignCharSz(&address, wszAddress);
@@ -2109,7 +2090,7 @@ namespace networkio
 #else
 		sprintf(szPort, "%u", port);
 #endif // CHATTERM_OS_WINDOWS
-		int result = getaddrinfo(address, szPort, &hints, &pres_addr);
+		int result = getaddrinfo(ptrAddress.get(), szPort, &hints, &pres_addr);
 
 		if(0 == result)
 		{
@@ -2117,7 +2098,6 @@ namespace networkio
 
 			freeaddrinfo(pres_addr);
 		}
-		delete[] address;
 
 		return result;
 	}

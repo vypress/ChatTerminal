@@ -714,7 +714,7 @@ int ChatTerminalApp::sendChatLine(const wchar_t* line, size_t line_len)
 	return result;
 }
 
-std::wstring&& ChatTerminalApp::getSecondParam(const wchar_t* p, const wchar_t*& second)
+std::wstring ChatTerminalApp::getSecondParam(const wchar_t* p, const wchar_t*& second)
 {
 	//first parameter must be enclosed by any characters, for example: |pass"word's|, or "passwd", or '"crazy" user', or "user who was born in 1990"
 	wchar_t sep = *p;
@@ -722,7 +722,7 @@ std::wstring&& ChatTerminalApp::getSecondParam(const wchar_t* p, const wchar_t*&
 
 	if(0 == *p || (sep==*(p+1)))
 	{
-		return std::move(strFirst);
+		return strFirst;
 	}
 
 	size_t first_len = 0;
@@ -734,16 +734,11 @@ std::wstring&& ChatTerminalApp::getSecondParam(const wchar_t* p, const wchar_t*&
 		while(iswspace(*++sep2));
 
 		second = sep2;
-	}
-	else
-	{
-		std::wstring strEmpty;
-		return std::move(strEmpty);
+
+		strFirst.assign(p, first_len);
 	}
 
-	strFirst.assign(p, first_len);
-
-	return std::move(strFirst);
+	return strFirst;
 }
 
 int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size_t params_len)
@@ -1022,13 +1017,13 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 
 	case JOIN:
 		{
-			std::wstring&& channel=std::wstring();
+			std::wstring channel;
 
 			if(params_len && params && *params)
 			{
 				std::wstring wstrbuf(CHANNEL_INFO::createNameWithPrefix(params, CHANNEL_INFO::NOT_SECURED));
 
-				channel = wstrbuf.length()>0 ? std::move(wstrbuf) : params;
+				channel = wstrbuf.length()>0 ? wstrbuf : params;
 			}
 			else channel = CHANNEL_INFO::wszMainChannel;
 
@@ -1113,7 +1108,7 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 
 	case SJOIN:
 		{
-			std::wstring&& channel = std::wstring();
+			std::wstring channel;
 			std::unique_ptr<wchar_t[]> buf(nullptr);
 
 			std::wstring passwd;
@@ -1130,7 +1125,7 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 
 				std::wstring wstrbuf(CHANNEL_INFO::createNameWithPrefix(channel, CHANNEL_INFO::SECURED));
 
-				channel = wstrbuf.length() > 0 ? std::move(wstrbuf) : channel_param;
+				channel = wstrbuf.length() > 0 ? wstrbuf : channel_param;
 			}
 
 			result = Commands_.SecureJoinQ5(channel, passwd.c_str());
@@ -1157,19 +1152,17 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 
 			size_t buflen = old_len + params_len + wcslen(theApp.ptrMe_->getNick()) + 5;
 
-			wchar_t* pwszTopic = new wchar_t[buflen];
+			std::unique_ptr<wchar_t[]> ptrTopic = std::make_unique<wchar_t[]>(buflen);
 
 			if( pacchinfo->topic.length())
-				swprintf_s(pwszTopic, buflen, L"%ls %ls (%ls)", pacchinfo->topic.c_str(), params, theApp.ptrMe_->getNick());
+				swprintf_s(ptrTopic.get(), buflen, L"%ls %ls (%ls)", pacchinfo->topic.c_str(), params, theApp.ptrMe_->getNick());
 			else
-				swprintf_s(pwszTopic, buflen, L"%ls (%ls)", params, theApp.ptrMe_->getNick());
+				swprintf_s(ptrTopic.get(), buflen, L"%ls (%ls)", params, theApp.ptrMe_->getNick());
 
 			if(pacchinfo->secured)
-				result = Commands_.SecureNewTopicQ3(pacchinfo->name, pacchinfo, pwszTopic);
+				result = Commands_.SecureNewTopicQ3(pacchinfo->name, pacchinfo, ptrTopic.get());
 			else
-				result = Commands_.NewTopicB( pacchinfo->name, pwszTopic);
-
-			delete[] pwszTopic;
+				result = Commands_.NewTopicB( pacchinfo->name, ptrTopic.get());
 		}
 		break;
 
@@ -1193,25 +1186,23 @@ int ChatTerminalApp::processCommandId(COMMAND_ID id, const wchar_t* params, size
 			}
 
 			size_t buflen = params_len + wcslen(theApp.ptrMe_->getNick())+4;
-			wchar_t* pwszTopic = new wchar_t[buflen];
-			int topic_len = swprintf_s(pwszTopic, buflen, L"%ls (%ls)", params, theApp.ptrMe_->getNick());
+			std::unique_ptr<wchar_t[]> ptrTopic = std::make_unique<wchar_t[]>(buflen);
+			int topic_len = swprintf_s(ptrTopic.get(), buflen, L"%ls (%ls)", params, theApp.ptrMe_->getNick());
 
 			DBG_UNREFERENCED_LOCAL_VARIABLE(topic_len);
 			_ASSERTE(topic_len);
 
 			if(pacchinfo && pacchinfo->secured)
-				result = Commands_.SecureNewTopicQ3(pacchinfo->name, pacchinfo, pwszTopic);
+				result = Commands_.SecureNewTopicQ3(pacchinfo->name, pacchinfo, ptrTopic.get());
 
 			else
-				result = Commands_.NewTopicB( pacchinfo->name, pwszTopic);
-
-			delete[] pwszTopic;
+				result = Commands_.NewTopicB( pacchinfo->name, ptrTopic.get());
 		}
 		break;
 
 	default:
 		consoleio::print_line(wszUnknownCmd);
-                break;
+		break;
 	}
 
 	return result;
@@ -1593,9 +1584,7 @@ bool ChatTerminalApp::initNetConfigFromXml(IXMLDOMDocument* pXMLDoc)
 								std::shared_ptr<networkio::Interface> ptrIf;
 								if((S_OK==hr3) && varNameValue.bstrVal && *varNameValue.bstrVal)
 								{
-									networkio::Interface* pIf;
-									networkio::get_interface_by_adapter_name(varNameValue.bstrVal, varAddressValue.bstrVal, family, pIf);
-									ptrIf.reset(pIf);
+									ptrIf = networkio::get_interface_by_adapter_name(varNameValue.bstrVal, varAddressValue.bstrVal, family);
 								}
 								else
 									if((S_OK==hr2) && varAddressValue.bstrVal && *varAddressValue.bstrVal)

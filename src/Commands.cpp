@@ -405,20 +405,20 @@ std::tuple<std::unique_ptr<char[]>, int> Commands::createMessageFields(char chTy
 	size_t q_signature_len_size = 0;
 	size_t signature_len_size = 0;
 
-	for(int i=0; i<nFields; i++)
+	for (int i = 0; i < nFields; i++)
 	{
-		buf_size+=pFields[i].size;
-		switch(pFields[i].type)
+		buf_size += pFields[i].size;
+		switch (pFields[i].type)
 		{
 		case STRING_FIELD:
 			buf_size++;//terminating null
 			break;
 		case QSIGNATURE_FIELD:
 		case SIGNATURE_FIELD:
-			buf_size+=nSignatureLength;
+			buf_size += nSignatureLength;
 			break;
-                default:
-                        break;
+		default:
+			break;
 		}
 	}
 
@@ -455,7 +455,7 @@ std::tuple<std::unique_ptr<char[]>, int> Commands::createMessageFields(char chTy
 				pFields[i].data.bytes_=(unsigned char*)&nSignatureLength;
 #ifndef CHATTERM_OS_WINDOWS
 				if(fBe_ && (pFields[i].size<sizeof(nSignatureLength)))
-				    pFields[i].data.bytes_+=(sizeof(nSignatureLength)-pFields[i].size);
+					pFields[i].data.bytes_+=(sizeof(nSignatureLength)-pFields[i].size);
 #endif
 			case LEN_OF_STRING_FIELD:
 			case NUMBER_FIELD:
@@ -463,10 +463,9 @@ std::tuple<std::unique_ptr<char[]>, int> Commands::createMessageFields(char chTy
 #ifndef CHATTERM_OS_WINDOWS
 				if(fBe_)
 				{
-				    for(size_t j=pFields[i].size-1; j!=size_t(-1); --j)
+					for(size_t j=pFields[i].size-1; j!=size_t(-1); --j)
 					*seek++ = pFields[i].data.bytes_[j];
-					
-				    break;
+					break;
 				}
 #endif				
 			case BYTES_FIELD:

@@ -2405,19 +2405,18 @@ bool ProcessorMsgX::processSecureJoinQ5(const char* pmsg, size_t msglen)
 		consoleio::print_line(wszDbgGender, gender);
 
 		size_t bufsize = _ARRAYSIZE(wszDbgHash)+3*fieldsQ5[4].size+1;
-		wchar_t* pwszLine = new wchar_t[bufsize];
-		wchar_t* seek_line = pwszLine;
+		std::unique_ptr<wchar_t[]> ptrLine = std::make_unique<wchar_t[]>(bufsize);
+		wchar_t* seek_line = ptrLine.get();
 		wcscpy_s(seek_line, bufsize, wszDbgHash);
 		seek_line +=_ARRAYSIZE(wszDbgHash)-1;
 
-		for(size_t i=0; i<fieldsQ5[4].size && seek_line<pwszLine+bufsize; i++)
+		for(size_t i=0; i<fieldsQ5[4].size && seek_line<ptrLine.get()+bufsize; i++)
 		{
 			swprintf(seek_line, 4, L"%02X ", hash[i]);
 			seek_line +=3;
 		}
 
-		consoleio::print_line( pwszLine);
-		delete[] pwszLine;
+		consoleio::print_line(ptrLine.get());
 	}
 
 	std::shared_ptr<USER_INFO> ptrUserInfo;

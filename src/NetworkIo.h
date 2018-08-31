@@ -51,7 +51,7 @@ namespace networkio
 	         The object must be freed using delete operator
 	@return - true is successful, false otherwise
 	*/
-	bool get_interface_by_adapter_name(const wchar_t* aname, const wchar_t* desired_addr, int ai_family, Interface*& piref);
+	std::unique_ptr<Interface> get_interface_by_adapter_name(const wchar_t* aname, const wchar_t* desired_addr, int ai_family);
 
 	/**
 	Suggests default network configuration for communications.
